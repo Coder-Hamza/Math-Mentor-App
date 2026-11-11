@@ -5,6 +5,7 @@ import '../models/unit.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/home/home_screen.dart';
+import '../screens/practice/practice_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/topic/topic_detail_screen.dart';
 import '../screens/tutor/tutor_screen.dart';
@@ -20,6 +21,7 @@ class Routes {
   static const String unit = '/unit';
   static const String topic = '/topic';
   static const String tutor = '/tutor';
+  static const String practice = '/practice';
 }
 
 class TopicRouteArgs {
@@ -41,6 +43,13 @@ class TutorRouteArgs {
   final String? initialQuestion;
 }
 
+class PracticeRouteArgs {
+  const PracticeRouteArgs({this.unitId, this.title = 'Practice'});
+
+  final int? unitId;
+  final String title;
+}
+
 Route<dynamic> onGenerateRoute(RouteSettings settings) {
   final Object? args = settings.arguments;
   final Widget page = switch (settings.name) {
@@ -57,6 +66,10 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
       topic: args.topic,
       unit: args.unit,
       initialQuestion: args.initialQuestion,
+    ),
+    Routes.practice when args is PracticeRouteArgs => PracticeScreen(
+      unitId: args.unitId,
+      title: args.title,
     ),
     _ => const SplashScreen(),
   };

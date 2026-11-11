@@ -8,6 +8,8 @@ from app.schemas.ai_schemas import VerificationStatus
 from app.services.mathematics.verifier import (
     SAMPLE_POINTS,
     MathParseError,
+    evaluate_constant,
+    has_variables,
     parse_math,
     split_equation,
     verify_expression,
@@ -287,3 +289,24 @@ def test_verify_expression_malformed_is_unverifiable(expression: str) -> None:
 )
 def test_split_equation(text: str, expected: tuple[str, str] | None) -> None:
     assert split_equation(text) == expected
+
+
+# ------------------------------------------------------------------ helpers for grading
+
+
+def test_evaluate_constant() -> None:
+    assert evaluate_constant("65/8") == pytest.approx(8.125)
+    assert evaluate_constant("2 + 3*I") == pytest.approx(2 + 3j)
+    with pytest.raises(MathParseError, match="contains variables"):
+        evaluate_constant("x + 1")
+    with pytest.raises(MathParseError, match="no finite value"):
+        evaluate_constant("1/0")
+    with pytest.raises(MathParseError):
+        evaluate_constant("__import__")
+
+
+def test_has_variables() -> None:
+    assert has_variables("n/(n + 1)") is True
+    assert has_variables("sqrt(2)/2") is False
+    with pytest.raises(MathParseError):
+        has_variables("open file")

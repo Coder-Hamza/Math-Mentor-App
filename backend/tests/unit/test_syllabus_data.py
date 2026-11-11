@@ -14,7 +14,8 @@ from sympy import Expr, Rational, Symbol
 from sympy.matrices import MatrixBase
 from sympy.parsing.sympy_parser import parse_expr
 
-from app.database.seed import FormulaSeed, SyllabusData, load_syllabus
+from app.database.seed import FormulaSeed, QuestionSeed, SyllabusData, load_syllabus
+from app.services.practice.answer_matching import evaluate_mcq, evaluate_text_answer
 
 # Sindh Board HSC-I Mathematics (DCAR) — unit number -> textbook start page (project spec).
 EXPECTED_PAGES = {
@@ -78,7 +79,7 @@ def test_every_unit_has_formulas_and_practice_questions() -> None:
 def test_difficulties_and_question_types_cover_the_range() -> None:
     assert {t.difficulty_level for t in DATA.topics} == {"easy", "medium", "hard"}
     assert {q.difficulty for q in DATA.questions} == {"easy", "medium", "hard"}
-    assert {q.question_type for q in DATA.questions} == {"short", "long", "proof"}
+    assert {q.question_type for q in DATA.questions} == {"mcq", "short", "long", "proof"}
 
 
 # ---------------------------------------------------------------- SymPy verification
@@ -154,6 +155,8 @@ def _minimal(**overrides: Any) -> dict[str, Any]:
                 "question_text": "Q?",
                 "difficulty": "easy",
                 "question_type": "short",
+                "correct_answer": "1",
+                "answer_explanation": "Because.",
             }
         ],
     }
@@ -205,3 +208,110 @@ def test_unknown_json_fields_rejected() -> None:
     bad = _minimal(units=[{"unit_number": 1, "title": "U", "page_number": 1, "pages": 3}])
     with pytest.raises(ValidationError):
         SyllabusData.model_validate(bad)
+
+
+# ---------------------------------------------------------------- practice answer key
+
+
+def test_every_question_has_an_answer_key() -> None:
+    assert len(DATA.questions) == 36
+    assert all(q.correct_answer.strip() and q.answer_explanation.strip() for q in DATA.questions)
+
+
+def test_question_type_mix() -> None:
+    counts = Counter(q.question_type for q in DATA.questions)
+    assert counts == {"mcq": 16, "short": 8, "long": 8, "proof": 4}
+    # Every unit can be practised (has at least one gradable question).
+    gradable_units = {q.unit_number for q in DATA.questions if q.question_type != "proof"}
+    assert gradable_units == set(EXPECTED_PAGES)
+
+
+@pytest.mark.parametrize(
+    "question", [q for q in DATA.questions if q.question_type == "mcq"], ids=lambda q: q.topic
+)
+def test_mcq_answer_is_one_of_four_options(question: QuestionSeed) -> None:
+    assert question.options is not None
+    assert len(set(question.options)) == 4
+    assert question.correct_answer in question.options
+    assert evaluate_mcq(
+        question.options, question.correct_answer, question.correct_answer
+    ).is_correct
+
+
+def test_mcq_correct_option_position_varies() -> None:
+    positions = {q.options.index(q.correct_answer) for q in DATA.questions if q.options is not None}
+    assert positions == {0, 1, 2, 3}  # the answer is not always "A"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [q for q in DATA.questions if q.question_type in {"short", "long"}],
+    ids=lambda q: q.topic,
+)
+def test_text_answer_keys_are_machine_checkable(question: QuestionSeed) -> None:
+    """Every short/long answer key is graded by SymPy (never by fuzzy text) against itself."""
+    result = evaluate_text_answer(question.correct_answer, question.correct_answer)
+    assert (result.is_correct, result.method) == (True, "sympy")
+
+
+@pytest.mark.parametrize(
+    ("topic", "student_answer"),
+    [
+        ("Algebraic Operations on Complex Numbers", "2i - 1"),
+        ("Equations in Complex Numbers", "2 ± 3i"),
+        ("Systems of Linear Equations", "1, 2, 3"),
+        ("Scalar (Dot) Product", "pi/3"),
+        ("Vector (Cross) Product", "4.899"),
+        ("Geometric Progression", "1.5"),
+        ("Sums of Powers of Natural Numbers", "2870"),
+        ("Method of Differences", "1 - 1/(n+1)"),
+        ("Combinations", "350"),
+        ("Addition and Multiplication Theorems of Probability", "0.3056"),
+        ("Binomial Series for Any Index", "9.95"),
+        ("Graphs of Functions", "3, 1"),
+        ("Optimization by Corner Point Method", "12"),
+        ("Solution of Right Triangles", "28.87 m"),
+        ("Circles Connected with a Triangle", "R = 8.125, r = 4"),
+        ("Inverse Trigonometric Functions", "-30°"),
+    ],
+)
+def test_typical_student_answers_are_accepted(topic: str, student_answer: str) -> None:
+    (question,) = [q for q in DATA.questions if q.topic == topic]
+    assert evaluate_text_answer(question.correct_answer, student_answer).is_correct
+
+
+def _question(**overrides: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
+        "unit_number": 1,
+        "topic": "T",
+        "question_text": "Q?",
+        "difficulty": "easy",
+        "question_type": "mcq",
+        "options": ["a", "b", "c", "d"],
+        "correct_answer": "a",
+        "answer_explanation": "E",
+    }
+    return base | overrides
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"options": None}, "needs 4 distinct options"),
+        ({"options": ["a", "b", "c"]}, "needs 4 distinct options"),
+        ({"options": ["a", "a", "b", "c"]}, "needs 4 distinct options"),
+        ({"options": ["a", "b", "c", ""]}, "must not be empty"),
+        ({"correct_answer": "z"}, "must be one of the MCQ options"),
+        ({"question_type": "short"}, "only MCQs have options"),
+        ({"correct_answer": ""}, "at least 1 character"),
+        ({"answer_explanation": ""}, "at least 1 character"),
+    ],
+)
+def test_question_answer_key_validation(overrides: dict[str, Any], message: str) -> None:
+    with pytest.raises(ValidationError, match=message):
+        QuestionSeed.model_validate(_question(**overrides))
+
+
+def test_valid_mcq_and_short_questions() -> None:
+    QuestionSeed.model_validate(_question())
+    QuestionSeed.model_validate(_question(question_type="short", options=None))

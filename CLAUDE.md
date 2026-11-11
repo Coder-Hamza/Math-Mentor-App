@@ -41,7 +41,8 @@ uv: 0.11.7
 Dev DB:  mathmentor_db  (user: mathmentor)
 Test DB: mathmentor_test (user: mathmentor)
 Connection: postgresql+psycopg://mathmentor:***@localhost:5432/
-Alembic revision: f7794967963c (initial schema) — at head
+Alembic revisions: f7794967963c (initial schema) -> 379d357d50ab (practice answers
+  + attempts) — at head. After upgrading, re-run the seed to fill the answer key.
 
 ## Project Structure
 math-mentor-ai/
@@ -56,14 +57,16 @@ math-mentor-ai/
 │   │   ├── repositories/# CRUD layer
 │   │   └── services/    # AI, math, tutor logic
 │   ├── tests/
-│   │   ├── unit/        # 189 tests
-│   │   └── integration/ # 49 tests
+│   │   ├── unit/        # 627 tests
+│   │   ├── integration/ # 88 tests
+│   │   └── api/         # 127 tests
 │   └── alembic/
 ├── syllabus/
 │   ├── chapters/units.json        # 12 units
 │   ├── topics/topics.json         # 52 topics
 │   ├── formulas/formulas.json     # 72 formulas
-│   └── question_patterns/         # 36 questions
+│   └── question_patterns/         # 36 questions + answer key
+│                                  # (16 mcq, 8 short, 8 long, 4 proof)
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── DEVELOPMENT_LOG.md
@@ -143,7 +146,7 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   cooldown. Tests 544/544 (unit 386, integration 62, api 96), 100% coverage
 - All 7 gates: PASS
 
-### Phase 4 — Flutter UI ✅ COMPLETE (awaiting approval for Phase 5)
+### Phase 4 — Flutter UI ✅ COMPLETE
 - Screens: Splash, Login, Register, Home (12 units), Unit detail (topics +
   difficulty badges), Topic detail (formulas, Ask AI, recent questions),
   Tutor (chat, loading, markdown, numbered steps, formula chips,
@@ -163,8 +166,29 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   test/helpers.dart), no real API calls; backend unchanged 544
 - All 7 gates: PASS
 
+### Phase 5 — Practice & Progress Tracking ✅ COMPLETE (awaiting approval for Phase 6)
+- Migration 379d357d50ab: practice_questions.correct_answer / answer_explanation /
+  options (JSON, MCQ only; CHECK mcq <=> options NOT NULL; JSON(none_as_null=True)),
+  student_progress.correct_count / points, new table practice_attempts
+- Endpoints (JWT): GET /practice/random?unit_id=&count=5 (no answers, proofs
+  excluded), POST /practice/submit, GET /progress/, GET /progress/weak-topics (<60%)
+- Grading: services/practice/answer_matching.py — MCQ exact/letter match; else SymPy
+  part-by-part (labels, ±, i, degrees, √, units, rounding >= 2 dp), fallback difflib
+  >= 0.85. NO Gemini. Runs in a thread with sympy_timeout_seconds.
+- practice_service.py: evaluate_answer, calculate_points (10/20/30, +5 under 60 s),
+  get_encouragement (Urdu/English), PracticeService (locks user row FOR UPDATE)
+- Points only the FIRST time a question is solved (already_solved flag) — anti-farming
+- repositories/progress_repository.py: get_or_create_progress, update_after_attempt,
+  get_overall_progress, get_unit_progress, get_weak_topics, current_streak, ...
+- Flutter: bottom nav (Units / Practice / Progress), PracticeScreen, ProgressScreen,
+  models practice_question / practice_result / progress, services practice_service /
+  progress_service, route /practice (PracticeRouteArgs)
+- Tests: backend 842 (unit 627, integration 88, api 127), 100% coverage;
+  Flutter 122, 98.3% line coverage
+- All 7 gates: PASS
+
 ## Current Phase
-### None in progress — waiting for user approval to start Phase 5
+### None in progress — waiting for user approval to start Phase 6
 
 ## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)
@@ -188,17 +212,17 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
 10. Update CLAUDE.md and DEVELOPMENT_LOG.md
 
 ## Upcoming Phases (Do Not Start Without Approval)
-Phase 3: Gemini AI Integration + SymPy Verification
-Phase 4: Flutter UI — Login, Units, Topics screens
-Phase 5: AI Tutor chat screen in Flutter
-Phase 6: Practice & Progress tracking
-Phase 7: Polish, offline support, final testing
+(Phases 0-5 done. The AI tutor chat screen was delivered in Phase 4; the user
+re-numbered Practice & Progress as Phase 5.)
+Phase 6+: as specified by the user (remaining from the original plan: polish,
+offline support, final testing)
 
 ## Important Notes
 - Topics list is best-guess reconstruction — 
   verify against DCAR textbook
-- Practice questions have no stored answers yet — 
-  needed for Phase 6 grading
+- Practice answer key lives in syllabus/question_patterns/practice_questions.json;
+  every short/long answer must be SymPy-checkable (a test enforces it). Proofs are
+  stored but never served for practice (not gradable without AI).
 - Android SDK not yet installed — needed for 
   flutter run and APK builds
 - Postgres superuser password was changed after 
@@ -228,12 +252,13 @@ Phase 7: Polish, offline support, final testing
 - SymPy has no type stubs: mypy override ignore_missing_imports for sympy
 - Never use the Edit/Write tools to write "\uXXXX" escapes — they get
   converted to literal characters (RUF001). Use a script with chr(92).
-- !! Flutter SDK lives at "C:\Users\Cloud Primero\flutter" (path has a
-  SPACE). Packages with native build hooks (e.g. objective_c) fail to
-  build. Recommended: move the SDK to C:\src\flutter. Until then, avoid
-  adding such packages. Flutter is not on PATH in tool shells: prepend the
-  User+Machine PATH from the registry before calling flutter.
+- Flutter SDK moved to C:\src\flutter (no space) during Phase 5; ran
+  `flutter pub get` to fix the stale package_config. Flutter is not on PATH in
+  tool shells: prepend the User+Machine PATH from the registry before calling
+  flutter. (google_fonts was dropped in Phase 4 because of the old space.)
 - Android SDK still not installed: the app has never run on a device;
-  flutter analyze/test only. Install Android Studio before Phase 5 testing.
+  flutter analyze/test only. Install Android Studio to run the app.
 - PowerShell Set-Content/Get-Content mangle UTF-8 (em dash -> mojibake);
   prefer Edit/Write or Python for text edits.
+- Bash heredocs with mixed quotes sometimes fail in the tool shell; write files
+  with the Write tool (or a Python script) instead.

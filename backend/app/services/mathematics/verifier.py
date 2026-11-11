@@ -371,6 +371,22 @@ def verify_numeric(
     )
 
 
+def evaluate_constant(expression: str) -> complex:
+    """Numeric value of a variable-free expression; ``MathParseError`` if it has none."""
+    expr = parse_math(expression)
+    if expr.free_symbols:
+        raise MathParseError("expression contains variables")
+    try:
+        return _evaluate(expr, {})
+    except _EvaluationError:
+        raise MathParseError("expression has no finite value") from None
+
+
+def has_variables(expression: str) -> bool:
+    """True if the (safely parsed) expression contains free symbols."""
+    return bool(parse_math(expression).free_symbols)
+
+
 def verify_expression(expression: str) -> VerificationResult:
     """``'lhs = rhs'`` is checked as an identity; anything else only for being well-formed."""
     if (sides := split_equation(expression)) is not None:

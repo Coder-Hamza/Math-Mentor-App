@@ -10,6 +10,8 @@ import 'providers/auth_provider.dart';
 import 'providers/units_provider.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
+import 'services/practice_service.dart';
+import 'services/progress_service.dart';
 import 'services/storage_service.dart';
 
 /// App root: builds services/providers and sends the user to Login whenever the
@@ -48,6 +50,8 @@ class _MathMentorAppState extends State<MathMentorApp> {
     _api,
   );
   late final UnitsProvider _units = UnitsProvider(_api);
+  late final PracticeService _practice = PracticeService(_api);
+  late final ProgressService _progress = ProgressService(_api);
   AuthStatus _lastStatus = AuthStatus.unknown;
 
   @override
@@ -84,6 +88,8 @@ class _MathMentorAppState extends State<MathMentorApp> {
       providers: <SingleChildWidget>[
         Provider<StorageService>.value(value: widget.storage),
         Provider<ApiService>.value(value: _api),
+        Provider<PracticeService>.value(value: _practice),
+        Provider<ProgressService>.value(value: _progress),
         ChangeNotifierProvider<AuthProvider>.value(value: _auth),
         ChangeNotifierProvider<UnitsProvider>.value(value: _units),
       ],

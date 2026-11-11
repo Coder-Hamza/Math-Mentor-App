@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base
 
 if TYPE_CHECKING:
+    from app.models.practice_attempt import PracticeAttempt
     from app.models.student_progress import StudentProgress
 
 
@@ -20,6 +21,9 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True, server_default=true())
 
     progress: Mapped[list[StudentProgress]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    attempts: Mapped[list[PracticeAttempt]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
 

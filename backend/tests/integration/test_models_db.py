@@ -77,7 +77,11 @@ def test_enum_round_trip(
 ) -> None:
     topic = make_topic(make_unit(1), difficulty_level=Difficulty.HARD)
     question = PracticeQuestion(
-        topic_id=topic.id, question_text="Prove it.", question_type=QuestionType.PROOF
+        topic_id=topic.id,
+        question_text="Prove it.",
+        question_type=QuestionType.PROOF,
+        correct_answer="QED",
+        answer_explanation="Because.",
     )
     db_session.add(question)
     db_session.flush()
@@ -154,7 +158,9 @@ def test_deleting_unit_cascades_in_database(
     db_session.add_all(
         [
             Formula(topic_id=topic.id, name="F", expression="x = 1"),
-            PracticeQuestion(topic_id=topic.id, question_text="Q"),
+            PracticeQuestion(
+                topic_id=topic.id, question_text="Q", correct_answer="1", answer_explanation="E"
+            ),
             StudentProgress(user_id=make_user().id, topic_id=topic.id),
         ]
     )

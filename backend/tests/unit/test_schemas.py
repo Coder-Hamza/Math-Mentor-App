@@ -8,6 +8,7 @@ from app.schemas import (
     FormulaCreate,
     FormulaUpdate,
     PracticeQuestionCreate,
+    PracticeQuestionRead,
     StudentProgressCreate,
     StudentProgressUpdate,
     TopicCreate,
@@ -109,14 +110,43 @@ class TestFormulaAndQuestionSchemas:
         }
 
     def test_question_defaults(self) -> None:
-        q = PracticeQuestionCreate(topic_id=1, question_text="Find i^2.")
+        q = PracticeQuestionCreate(
+            topic_id=1, question_text="Find i^2.", correct_answer="-1", answer_explanation="E"
+        )
         assert (q.difficulty, q.question_type) == (Difficulty.MEDIUM, QuestionType.SHORT)
 
     def test_question_type_validated(self) -> None:
         with pytest.raises(ValidationError):
             PracticeQuestionCreate.model_validate(
-                {"topic_id": 1, "question_text": "Q", "question_type": "essay"}
+                {
+                    "topic_id": 1,
+                    "question_text": "Q",
+                    "question_type": "essay",
+                    "correct_answer": "1",
+                    "answer_explanation": "E",
+                }
             )
+
+    def test_answer_key_is_required(self) -> None:
+        with pytest.raises(ValidationError):
+            PracticeQuestionCreate(topic_id=1, question_text="Q")  # type: ignore[call-arg]
+
+    @pytest.mark.parametrize("options", [["a", "b", "c"], ["a", "b", "c", "d", "e"]])
+    def test_mcq_needs_exactly_four_options(self, options: list[str]) -> None:
+        with pytest.raises(ValidationError):
+            PracticeQuestionCreate(
+                topic_id=1,
+                question_text="Q",
+                question_type=QuestionType.MCQ,
+                options=options,
+                correct_answer="a",
+                answer_explanation="E",
+            )
+
+    def test_public_read_schema_never_exposes_the_answer(self) -> None:
+        assert {"correct_answer", "answer_explanation"}.isdisjoint(
+            PracticeQuestionRead.model_fields
+        )
 
 
 class TestStudentProgressSchemas:

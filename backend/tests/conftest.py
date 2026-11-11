@@ -18,7 +18,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.config import BACKEND_DIR, get_settings
-from app.models import Difficulty, Topic, Unit, User
+from app.models import Difficulty, PracticeQuestion, QuestionType, Topic, Unit, User
 
 
 def alembic_config(url: str) -> Config:
@@ -103,5 +103,22 @@ def make_user(db_session: Session) -> Callable[..., User]:
         db_session.add(user)
         db_session.flush()
         return user
+
+    return factory
+
+
+@pytest.fixture
+def make_question(db_session: Session) -> Callable[..., PracticeQuestion]:
+    def factory(topic: Topic, text: str = "Q?", **kwargs: Any) -> PracticeQuestion:
+        values: dict[str, Any] = {
+            "difficulty": Difficulty.EASY,
+            "question_type": QuestionType.SHORT,
+            "correct_answer": "3/2",
+            "answer_explanation": "Because.",
+        } | kwargs
+        question = PracticeQuestion(topic_id=topic.id, question_text=text, **values)
+        db_session.add(question)
+        db_session.flush()
+        return question
 
     return factory

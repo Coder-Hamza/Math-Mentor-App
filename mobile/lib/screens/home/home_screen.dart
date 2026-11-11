@@ -9,17 +9,91 @@ import '../../providers/units_provider.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/unit_card.dart';
+import '../practice/practice_screen.dart';
+import '../progress/progress_screen.dart';
 import '../../core/theme.dart';
 
-/// The 12 syllabus units.
+/// Home: bottom navigation with Units, Practice and Progress tabs.
+///
+/// Tabs are built the first time they are opened (so Practice does not fetch questions
+/// until the student goes there). Practice keeps its state while switching tabs; Progress
+/// reloads every time it is opened, so it always shows the latest points.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  static const int unitsTab = 0;
+  static const int practiceTab = 1;
+  static const int progressTab = 2;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _tab = HomeScreen.unitsTab;
+  final Set<int> _opened = <int>{HomeScreen.unitsTab};
+  int _progressVisits = 0;
+
+  void _select(int tab) {
+    setState(() {
+      _tab = tab;
+      _opened.add(tab);
+      if (tab == HomeScreen.progressTab) {
+        _progressVisits++;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _tab,
+        children: <Widget>[
+          const UnitsTab(),
+          if (_opened.contains(HomeScreen.practiceTab))
+            PracticeScreen(onHome: () => _select(HomeScreen.unitsTab))
+          else
+            const SizedBox.shrink(),
+          if (_opened.contains(HomeScreen.progressTab))
+            ProgressScreen(key: ValueKey<int>(_progressVisits))
+          else
+            const SizedBox.shrink(),
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        key: const ValueKey<String>('bottom-nav'),
+        currentIndex: _tab,
+        onTap: _select,
+        selectedItemColor: AppColors.primary,
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book_rounded),
+            label: 'Units',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.edit_note_rounded),
+            label: 'Practice',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart_rounded),
+            label: 'Progress',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The 12 syllabus units (first tab).
+class UnitsTab extends StatefulWidget {
+  const UnitsTab({super.key});
+
+  @override
+  State<UnitsTab> createState() => _UnitsTabState();
+}
+
+class _UnitsTabState extends State<UnitsTab> {
   @override
   void initState() {
     super.initState();

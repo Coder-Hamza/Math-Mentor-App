@@ -492,3 +492,143 @@ The Android SDK is not installed, so the app has **not run on an emulator or pho
 only been analyzed and widget-tested. See `README.md` for how to run it.
 
 **Phase 4 status: COMPLETE. Waiting for approval before starting Phase 5.**
+
+---
+
+## Phase 5: Practice & progress tracking (2026-11-11)
+
+### Backend
+- **Answer key** (migration `379d357d50ab`): `practice_questions` gains `correct_answer`,
+  `answer_explanation` and `options` (JSON, the 4 MCQ choices). A check constraint ties
+  `question_type = 'mcq'` to `options IS NOT NULL`. Existing rows are backfilled with an empty
+  answer key (not gradable) until the seed runs again.
+- **Seed:** all 36 questions now have an answer and an explanation. 16 became MCQs: graph
+  regions, matrices, triangle solutions, general solutions and domain/range can't be graded
+  fairly as free text. The other 16 are short or long, plus the 4 proofs. The seed
+  validates every MCQ: 4 distinct options, and the answer must be one of them. The correct
+  option's position varies (A to D).
+- **New table `practice_attempts`:** one row per submission. It drives streaks and "points only
+  once per question".
+- **`student_progress`** gains `correct_count` and `points`; `score` is now the topic accuracy (%).
+- **Endpoints** (all JWT):
+  - `GET /practice/random?unit_id=&count=5` returns questions without answers; proofs are excluded.
+  - `POST /practice/submit` returns `is_correct`, `correct_answer`, `explanation`,
+    `points_earned`, `new_total_points`, `streak`, `encouragement` and `already_solved`.
+  - `GET /progress/` returns points, attempts, correct answers, accuracy, streak and per-unit
+    progress.
+  - `GET /progress/weak-topics` returns topics with accuracy below 60%, weakest first.
+- **Grading** (`services/practice/answer_matching.py`), with no Gemini call:
+  - MCQ: exact, case-insensitive match on the option text or its letter A to D.
+  - Short and long answers are checked by SymPy first. Answers are split into parts and each
+    part is compared mathematically:
+    - Labels are matched by name (`R = 65/8, r = 4`).
+    - Unordered roots: `2 ± 3i` equals `2 + 3i, 2 - 3i`.
+    - `i` is read as the imaginary unit.
+    - Degrees are converted: `-30°` and a bare `-30` both match `-π/6`.
+    - `√`, units (`28.87 m`), `≈` and thousands separators are handled.
+    - Decimals are accepted when correctly rounded to at least 2 places: `9.95` matches
+      `9.950`, `9.94` does not.
+  - Anything that isn't maths falls back to `difflib` similarity (at least 0.85).
+  - Grading runs in a worker thread with the 5 s SymPy timeout and falls back to similarity
+    if that runs out.
+  - Student text goes through the hardened parser (`verifier.parse_math`).
+- **Points:**
+  - Base points by difficulty: easy 10, medium 20, hard 30.
+  - Bonus: +5 for a correct answer in under 60 s.
+  - A wrong answer earns 0.
+- **Encouragement:**
+  - "Shabash! N sawaal lagataar sahi! 🔥" (streak ≥ 3)
+  - "Bilkul sahi! Bohat acha! ✅"
+  - "Himmat mat haro! Agle mein zaroor sahi hoga 🌟" (lost a streak of ≥ 3)
+  - "Koi baat nahi, dobara koshish karo 💪"
+- **Concurrency:** submit locks the user row (`SELECT ... FOR UPDATE`), so one student's
+  submissions can't interleave.
+
+### Flutter
+- **Bottom navigation:** Units, Practice and Progress. Tabs are built the first time they are
+  opened. Practice keeps its session while switching tabs; Progress reloads every time it is
+  opened.
+- **Practice screen:**
+  - Shows 5 random questions one at a time, each with "Sawaal 1/5", a difficulty badge, the
+    unit and topic, and the question.
+  - Answers: MCQs have 4 lettered option buttons; other questions use a text field.
+  - Submit shows a spinner while the answer is graded.
+  - The result card shows ✅ or ❌, the correct answer, the explanation, points, the
+    encouragement and the streak. After grading, the options are locked and the correct one
+    is marked.
+  - The screen auto-scrolls to the result.
+  - "Agla Sawaal" moves on. After the last question, a summary shows points and right/wrong
+    counts, with "Dobara Khelo" and "Home".
+- **Progress screen:**
+  - Stats card: 🏆 points, accuracy, 🔥 streak, attempted.
+  - Unit progress bars: red below 40%, orange 40–70%, green above 70%.
+  - Weak topics are shown in red with a "Practice karein" button, which opens practice for
+    that unit.
+  - Pull to refresh.
+- **New code:**
+  - Models: `practice_question`, `practice_result`, `progress`.
+  - Services: `practice_service`, `progress_service`.
+  - Widgets: `practice_result_card`, `progress_widgets`.
+  - Route: `/practice` with `PracticeRouteArgs`.
+
+### Decisions
+| Spec | Done | Why |
+|---|---|---|
+| MCQ needs options | Added an `options` JSON column. 16 questions became MCQs (question text unchanged). | None of the 36 questions were MCQs before, and several could not be graded as free text |
+| Answers for proofs | Stored, but proofs are excluded from `/practice/random`; submitting one returns 422 `question_not_gradable` | A proof can't be checked by SymPy or string matching without AI |
+| Points on every correct answer | Points only the **first** time a question is solved (`already_solved` flag); repeats still count for accuracy and streak | The answer is revealed after each submission, so repeats would let students farm points |
+| `progress_percent` | Sum of topic accuracies ÷ topics in the unit that have gradable questions (`topics_total`) | Gives 100% when every practisable topic is fully correct. `avg_score` averages only the attempted topics. |
+| "Streak broken" message | Shown when a streak of ≥ 3 (the 🔥 threshold) is lost | One correct answer isn't a streak |
+| Answer tolerance | Correctly rounded decimals with at least 2 places | `0.97` for `(√6+√2)/4` is right; `1` is not |
+
+A test caught that no MCQ had its answer at option A, so 4 were reordered. Another
+caught that SQLAlchemy stores Python `None` as JSON `null`, not SQL NULL, which broke the
+check constraint (fixed with `JSON(none_as_null=True)`). Writing the navigation tests also
+showed that the result card could sit below the fold, so the practice screen now
+auto-scrolls to it.
+
+### Environment
+The Flutter SDK now lives at `C:\src\flutter`, with no space in the path. The old
+`.dart_tool/package_config.json` still pointed at the previous location and made
+`flutter analyze` report 2134 errors; `flutter pub get` fixed it. The Android SDK is still
+missing.
+
+### Tests
+- **Backend:** 842 passing (+298), 100% coverage (unit 627, integration 88, API 127). New:
+  - `test_answer_matching` (144): MCQ, SymPy equivalence, rounding, labels, degrees, hostile
+    input, similarity.
+  - `test_practice_rules` (22): `evaluate_answer`, `calculate_points`, `get_encouragement`,
+    the grading timeout.
+  - Syllabus answer key:
+    - Every short or long answer key is graded by SymPy, not by text similarity.
+    - A typical student answer is accepted for each of the 16 short/long questions.
+    - The MCQ checks above (4 options, answer present, varied position).
+  - `test_progress_repository` (10): every method, plus isolation between students.
+  - `test_practice_service` (12): first solve, repeat solve, streak, broken streak, letter
+    answers, ungradable questions, 404, the timeout fallback, random selection.
+  - `test_practice` API (31): submit correct, wrong and invalid; random; progress; weak topics;
+    no answer leaks; auth.
+  - Migrations: the answer fields exist; upgrading from Phase 4 backfills existing rows.
+- **Flutter:** 122 passing (+35), **98.3% line coverage**, all against mocked HTTP:
+  - Practice screen (12).
+  - Progress screen (9).
+  - Bottom navigation (4).
+  - Practice and progress services and models (10).
+
+### Quality gates
+| # | Gate | Result |
+|---|---|---|
+| 1 | ruff format --check | PASS |
+| 2 | ruff check | PASS |
+| 3 | mypy app | PASS |
+| 4 | pytest -v | PASS (842) |
+| 5 | coverage | PASS (100%) |
+| 6 | flutter analyze | PASS |
+| 7 | flutter test | PASS (122) |
+
+### Live check
+I seeded the dev DB, then called random, submit (wrong answer), progress and weak-topics with
+`TestClient` against the real database. All returned 200 with the expected data, and the
+temporary user was deleted afterwards.
+
+**Phase 5 status: COMPLETE. Waiting for approval before starting Phase 6.**

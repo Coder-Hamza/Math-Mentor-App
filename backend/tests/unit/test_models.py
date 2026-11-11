@@ -8,6 +8,7 @@ from app.database.base import Base
 from app.models import (
     Difficulty,
     Formula,
+    PracticeAttempt,
     PracticeQuestion,
     QuestionType,
     StudentProgress,
@@ -28,6 +29,7 @@ def test_expected_tables_registered() -> None:
         "topics",
         "formulas",
         "practice_questions",
+        "practice_attempts",
         "student_progress",
     }
 
@@ -39,10 +41,43 @@ def test_expected_tables_registered() -> None:
         (Unit, {"id", "unit_number", "title", "description", "page_number"}),
         (Topic, {"id", "unit_id", "title", "description", "difficulty_level"}),
         (Formula, {"id", "topic_id", "name", "expression", "description"}),
-        (PracticeQuestion, {"id", "topic_id", "question_text", "difficulty", "question_type"}),
+        (
+            PracticeQuestion,
+            {
+                "id",
+                "topic_id",
+                "question_text",
+                "difficulty",
+                "question_type",
+                "options",
+                "correct_answer",
+                "answer_explanation",
+            },
+        ),
         (
             StudentProgress,
-            {"id", "user_id", "topic_id", "score", "attempts", "last_attempted"},
+            {
+                "id",
+                "user_id",
+                "topic_id",
+                "score",
+                "attempts",
+                "correct_count",
+                "points",
+                "last_attempted",
+            },
+        ),
+        (
+            PracticeAttempt,
+            {
+                "id",
+                "user_id",
+                "question_id",
+                "is_correct",
+                "points_earned",
+                "time_taken_seconds",
+                "created_at",
+            },
         ),
     ],
 )
@@ -58,6 +93,8 @@ def test_model_columns_match_spec(model: type[Base], columns: set[str]) -> None:
         (PracticeQuestion, "topic_id", "topics.id"),
         (StudentProgress, "user_id", "users.id"),
         (StudentProgress, "topic_id", "topics.id"),
+        (PracticeAttempt, "user_id", "users.id"),
+        (PracticeAttempt, "question_id", "practice_questions.id"),
     ],
 )
 def test_foreign_keys_cascade_on_delete(model: type[Base], fk_column: str, target: str) -> None:
@@ -92,6 +129,34 @@ def test_progress_check_constraints() -> None:
     }
     assert "score >= 0 AND score <= 100" in texts
     assert "attempts >= 0" in texts
+    assert "correct_count >= 0 AND correct_count <= attempts" in texts
+    assert "points >= 0" in texts
+
+
+def test_mcq_options_constraint_and_json_null() -> None:
+    texts = {
+        str(c.sqltext)
+        for c in PracticeQuestion.__table__.constraints
+        if isinstance(c, CheckConstraint)
+    }
+    assert "(question_type = 'mcq') = (options IS NOT NULL)" in texts
+    # None must be stored as SQL NULL (not JSON 'null'), or the constraint above fails.
+    assert PracticeQuestion.__table__.c.options.type.none_as_null is True
+
+
+@pytest.mark.parametrize(
+    ("question_type", "answer", "gradable"),
+    [
+        (QuestionType.SHORT, "5", True),
+        (QuestionType.MCQ, "5", True),
+        (QuestionType.LONG, "x = 1", True),
+        (QuestionType.PROOF, "AH = G^2", False),
+        (QuestionType.SHORT, "  ", False),
+    ],
+)
+def test_is_gradable(question_type: QuestionType, answer: str, gradable: bool) -> None:
+    question = PracticeQuestion(question_type=question_type, correct_answer=answer)
+    assert question.is_gradable is gradable
 
 
 @pytest.mark.parametrize(
@@ -126,3 +191,6 @@ def test_reprs_are_informative_and_safe() -> None:
     assert repr(Formula(id=2, name="Dot")) == "Formula(id=2, name='Dot')"
     assert repr(PracticeQuestion(id=3, topic_id=1)) == "PracticeQuestion(id=3, topic_id=1)"
     assert repr(StudentProgress(user_id=1, topic_id=2)) == "StudentProgress(user_id=1, topic_id=2)"
+    assert repr(PracticeAttempt(user_id=1, question_id=2, is_correct=True)) == (
+        "PracticeAttempt(user_id=1, question_id=2, is_correct=True)"
+    )

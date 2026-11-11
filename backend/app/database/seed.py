@@ -59,12 +59,32 @@ class FormulaSeed(_SeedModel):
     description: str | None = None
 
 
+MCQ_OPTION_COUNT = 4
+
+
 class QuestionSeed(_SeedModel):
     unit_number: int
     topic: str
     question_text: str = Field(min_length=1)
     difficulty: Difficulty
     question_type: QuestionType
+    options: tuple[str, ...] | None = None
+    correct_answer: str = Field(min_length=1)
+    answer_explanation: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _check_options(self) -> Self:
+        if self.question_type is QuestionType.MCQ:
+            options = self.options or ()
+            if len(options) != MCQ_OPTION_COUNT or len(set(options)) != MCQ_OPTION_COUNT:
+                raise ValueError(f"an MCQ needs {MCQ_OPTION_COUNT} distinct options")
+            if not all(options):
+                raise ValueError("MCQ options must not be empty")
+            if self.correct_answer not in options:
+                raise ValueError("the correct answer must be one of the MCQ options")
+        elif self.options is not None:
+            raise ValueError("only MCQs have options")
+        return self
 
 
 def _duplicates[T](keys: list[T]) -> list[T]:
@@ -196,7 +216,10 @@ def seed_database(session: Session, data: SyllabusData) -> SeedReport:
     }
     for q in data.questions:
         tid = topic_id(q.unit_number, q.topic)
-        values = q.model_dump(exclude={"unit_number", "topic"}) | {"topic_id": tid}
+        values = q.model_dump(exclude={"unit_number", "topic", "options"}) | {
+            "topic_id": tid,
+            "options": list(q.options) if q.options is not None else None,
+        }
         _upsert(session, questions, (tid, q.question_text), PracticeQuestion, values, report)
 
     session.flush()

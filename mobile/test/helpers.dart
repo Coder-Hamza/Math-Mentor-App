@@ -86,6 +86,14 @@ const Map<String, Object> loggedIn = <String, Object>{
   'refresh_token': 'refresh-1',
 };
 
+/// A tall phone-sized viewport (412 x 915 logical pixels) instead of 800 x 600.
+void usePhoneScreen(WidgetTester tester) {
+  tester.view
+    ..physicalSize = const Size(1236, 2745)
+    ..devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+}
+
 /// Pumps the whole app (splash first, or [home] directly) against [backend].
 Future<StorageService> pumpApp(
   WidgetTester tester,
@@ -210,3 +218,118 @@ Map<String, Object?> tutorJson({
   'unit': 'Complex Numbers',
   'warning': warning,
 };
+
+// ------------------------------------------------------------------ practice & progress
+
+final List<Map<String, Object?>> practiceQuestionsJson = <Map<String, Object?>>[
+  <String, Object?>{
+    'id': 4,
+    'topic_id': 21,
+    'topic_title': 'Determinants and Their Properties',
+    'unit_id': 2,
+    'unit_number': 2,
+    'unit_title': 'Matrices & Determinants',
+    'question_text': 'Evaluate the determinant |2 3; 1 4|.',
+    'difficulty': 'easy',
+    'question_type': 'mcq',
+    'options': <String>['5', '11', '-5', '8'],
+  },
+  <String, Object?>{
+    'id': 11,
+    'topic_id': 41,
+    'topic_title': 'Geometric Progression',
+    'unit_id': 4,
+    'unit_number': 4,
+    'unit_title': 'Sequences & Series',
+    'question_text':
+        'Find the sum of the infinite geometric series 1 + 1/3 + 1/9 + ...',
+    'difficulty': 'medium',
+    'question_type': 'short',
+    'options': null,
+  },
+  <String, Object?>{
+    'id': 33,
+    'topic_id': 113,
+    'topic_title': 'Circles Connected with a Triangle',
+    'unit_id': 11,
+    'unit_number': 11,
+    'unit_title': 'Application of Trigonometry',
+    'question_text': 'Find R and r of the triangle with sides 13, 14 and 15.',
+    'difficulty': 'hard',
+    'question_type': 'long',
+    'options': null,
+  },
+];
+
+Map<String, Object?> practiceResultJson({
+  bool correct = true,
+  String correctAnswer = '5',
+  int points = 15,
+  int total = 15,
+  int streak = 1,
+  String? encouragement,
+  bool alreadySolved = false,
+}) => <String, Object?>{
+  'is_correct': correct,
+  'correct_answer': correctAnswer,
+  'explanation': 'ad - bc = 8 - 3 = 5.',
+  'points_earned': points,
+  'new_total_points': total,
+  'streak': streak,
+  'encouragement':
+      encouragement ??
+      (correct
+          ? 'Bilkul sahi! Bohat acha! ✅'
+          : 'Koi baat nahi, dobara koshish karo 💪'),
+  'already_solved': alreadySolved,
+};
+
+Map<String, Object?> unitProgressJson(
+  int number,
+  double percent, {
+  int attempted = 1,
+  int total = 3,
+}) => <String, Object?>{
+  'unit_id': number,
+  'unit_number': number,
+  'unit_title': unitTitles[number - 1],
+  'topics_attempted': attempted,
+  'topics_total': total,
+  'avg_score': percent,
+  'progress_percent': percent,
+};
+
+Map<String, Object?> progressJson({
+  int points = 245,
+  int attempted = 18,
+  int correct = 12,
+  double accuracy = 66.7,
+  int streak = 4,
+  List<Map<String, Object?>>? units,
+}) => <String, Object?>{
+  'total_points': points,
+  'total_attempted': attempted,
+  'total_correct': correct,
+  'accuracy_percent': accuracy,
+  'current_streak': streak,
+  'units_progress':
+      units ??
+      <Map<String, Object?>>[
+        unitProgressJson(1, 25),
+        unitProgressJson(2, 55.5),
+        unitProgressJson(3, 100, attempted: 3),
+      ],
+};
+
+final List<Map<String, Object?>> weakTopicsJson = <Map<String, Object?>>[
+  <String, Object?>{
+    'topic_id': 61,
+    'topic_title': 'Combinations',
+    'unit_id': 6,
+    'unit_number': 6,
+    'unit_title': 'Permutation, Combination & Probability',
+    'attempts': 3,
+    'correct': 1,
+    'accuracy_percent': 33.3,
+  },
+];

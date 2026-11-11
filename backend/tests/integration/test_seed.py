@@ -80,3 +80,26 @@ def test_main_seeds_and_commits(db_session: Session, capsys: pytest.CaptureFixtu
     assert report.created["units"] == 12
     assert "Seed complete" in capsys.readouterr().out
     assert _count(db_session, Unit) == 12  # committed to the (outer, rolled-back) transaction
+
+
+def test_seed_stores_answer_keys_and_mcq_options(db_session: Session) -> None:
+    seed_database(db_session, DATA)
+    questions = db_session.scalars(select(PracticeQuestion)).all()
+    assert all(q.correct_answer and q.answer_explanation for q in questions)
+    mcqs = [q for q in questions if q.options is not None]
+    assert len(mcqs) == 16
+    assert all(q.correct_answer in q.options for q in mcqs if q.options)
+    assert all(q.is_gradable for q in questions if q.question_type != "proof")
+
+
+def test_reseeding_fills_answer_keys_left_empty_by_the_migration(db_session: Session) -> None:
+    seed_database(db_session, DATA)
+    for question in db_session.scalars(select(PracticeQuestion)):
+        question.correct_answer = question.answer_explanation = ""
+        question.options = None if question.question_type != "mcq" else question.options
+    db_session.flush()
+
+    report = seed_database(db_session, DATA)
+
+    assert report.updated["practice_questions"] == len(DATA.questions)
+    assert all(q.correct_answer for q in db_session.scalars(select(PracticeQuestion)))

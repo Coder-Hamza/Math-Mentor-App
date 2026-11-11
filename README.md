@@ -22,6 +22,19 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 `--host 0.0.0.0` lets a phone on your network reach the server. The API docs are at
 http://localhost:8000/docs.
 
+After pulling a change that adds a migration (for example Phase 5's practice answer key),
+run `uv run alembic upgrade head` and then `uv run python -m app.database.seed` again. The
+seed is idempotent and fills in new columns on existing rows.
+
+### Practice and progress
+- `GET /api/v1/practice/random` serves questions without answers.
+- `POST /api/v1/practice/submit` grades an answer with SymPy and string matching, without any
+  AI call.
+- `GET /api/v1/progress/` and `/progress/weak-topics` power the app's Progress tab.
+
+A question earns points (easy 10, medium 20, hard 30, +5 under 60 s) only the first time it
+is solved.
+
 ## 2. Run the Android app
 
 You need Android Studio, which installs the Android SDK. Afterwards, `flutter doctor` should

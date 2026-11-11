@@ -156,7 +156,12 @@ class TestTopicRepository:
         db_session.add_all(
             [
                 Formula(topic_id=topic.id, name="F", expression="x = 1"),
-                PracticeQuestion(topic_id=topic.id, question_text="Q1"),
+                PracticeQuestion(
+                    topic_id=topic.id,
+                    question_text="Q1",
+                    correct_answer="1",
+                    answer_explanation="E",
+                ),
             ]
         )
         db_session.flush()
