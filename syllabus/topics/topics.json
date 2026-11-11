@@ -1,0 +1,65 @@
+[
+  {"unit_number": 1, "title": "Introduction to Complex Numbers", "difficulty_level": "easy", "description": "The imaginary unit i (i^2 = -1), powers of i, real and imaginary parts, equality of complex numbers."},
+  {"unit_number": 1, "title": "Algebraic Operations on Complex Numbers", "difficulty_level": "easy", "description": "Addition, subtraction, multiplication and division of complex numbers."},
+  {"unit_number": 1, "title": "Conjugate and Modulus", "difficulty_level": "medium", "description": "Conjugate of a complex number, modulus, and their properties."},
+  {"unit_number": 1, "title": "Argand Diagram and Polar Form", "difficulty_level": "medium", "description": "Geometric representation in the Argand plane, argument, and the polar form r(cos θ + i sin θ)."},
+  {"unit_number": 1, "title": "Equations in Complex Numbers", "difficulty_level": "hard", "description": "Solving linear and quadratic equations whose roots are complex numbers."},
+
+  {"unit_number": 2, "title": "Types of Matrices", "difficulty_level": "easy", "description": "Order of a matrix; row, column, square, diagonal, scalar, identity, null, symmetric and skew-symmetric matrices."},
+  {"unit_number": 2, "title": "Algebra of Matrices", "difficulty_level": "easy", "description": "Addition, scalar multiplication, matrix multiplication and transpose."},
+  {"unit_number": 2, "title": "Determinants and Their Properties", "difficulty_level": "medium", "description": "Determinants of order 2 and 3, minors and cofactors, and properties used to evaluate determinants."},
+  {"unit_number": 2, "title": "Adjoint and Inverse of a Matrix", "difficulty_level": "medium", "description": "Singular and non-singular matrices, adjoint, and the inverse A^(-1) = adj(A)/|A|."},
+  {"unit_number": 2, "title": "Systems of Linear Equations", "difficulty_level": "hard", "description": "Solving systems by Cramer's rule, the matrix inversion method and Gauss elimination."},
+
+  {"unit_number": 3, "title": "Vectors in Plane and Space", "difficulty_level": "easy", "description": "Scalars and vectors, position vectors, components, magnitude, and addition of vectors."},
+  {"unit_number": 3, "title": "Unit Vectors and Direction Cosines", "difficulty_level": "medium", "description": "Unit vectors i, j, k, direction angles and direction cosines of a vector."},
+  {"unit_number": 3, "title": "Scalar (Dot) Product", "difficulty_level": "medium", "description": "Dot product, angle between two vectors, projection, and the condition for perpendicularity."},
+  {"unit_number": 3, "title": "Vector (Cross) Product", "difficulty_level": "medium", "description": "Cross product, the condition for parallel vectors, and area of a parallelogram and triangle."},
+  {"unit_number": 3, "title": "Scalar Triple Product and Applications", "difficulty_level": "hard", "description": "Scalar triple product, volume of a parallelepiped, coplanar vectors, work done and moment of a force."},
+
+  {"unit_number": 4, "title": "Sequences", "difficulty_level": "easy", "description": "Sequences, general term, finite and infinite sequences."},
+  {"unit_number": 4, "title": "Arithmetic Progression", "difficulty_level": "easy", "description": "nth term of an A.P., arithmetic means, and the sum of n terms of an arithmetic series."},
+  {"unit_number": 4, "title": "Geometric Progression", "difficulty_level": "medium", "description": "nth term of a G.P., geometric means, and sums of finite and infinite geometric series."},
+  {"unit_number": 4, "title": "Harmonic Progression", "difficulty_level": "medium", "description": "Harmonic progression and harmonic means."},
+  {"unit_number": 4, "title": "Relations between Arithmetic, Geometric and Harmonic Means", "difficulty_level": "hard", "description": "Relations G^2 = AH and A ≥ G ≥ H for positive numbers."},
+
+  {"unit_number": 5, "title": "Sigma Notation", "difficulty_level": "easy", "description": "Notation Σ and properties of summation."},
+  {"unit_number": 5, "title": "Sums of Powers of Natural Numbers", "difficulty_level": "medium", "description": "Σn, Σn^2 and Σn^3 and series built from them."},
+  {"unit_number": 5, "title": "Arithmetico-Geometric Series", "difficulty_level": "hard", "description": "Series whose terms are products of corresponding terms of an A.P. and a G.P."},
+  {"unit_number": 5, "title": "Method of Differences", "difficulty_level": "hard", "description": "Summing series by expressing terms as differences (telescoping)."},
+
+  {"unit_number": 6, "title": "Factorial Notation and Fundamental Principle of Counting", "difficulty_level": "easy", "description": "n!, and the multiplication and addition principles of counting."},
+  {"unit_number": 6, "title": "Permutations", "difficulty_level": "medium", "description": "Linear permutations, permutations with repetition, and circular permutations."},
+  {"unit_number": 6, "title": "Combinations", "difficulty_level": "medium", "description": "Combinations nCr and their properties."},
+  {"unit_number": 6, "title": "Probability", "difficulty_level": "medium", "description": "Sample space, events, classical probability, and complementary events."},
+  {"unit_number": 6, "title": "Addition and Multiplication Theorems of Probability", "difficulty_level": "hard", "description": "Mutually exclusive and independent events, and the addition and multiplication laws."},
+
+  {"unit_number": 7, "title": "Principle of Mathematical Induction", "difficulty_level": "medium", "description": "Proving statements for all natural numbers by mathematical induction."},
+  {"unit_number": 7, "title": "Binomial Theorem for Positive Integral Index", "difficulty_level": "medium", "description": "Expansion of (a + b)^n, binomial coefficients and their properties."},
+  {"unit_number": 7, "title": "General Term and Middle Term", "difficulty_level": "medium", "description": "The (r + 1)th term, middle term(s), and the term independent of x."},
+  {"unit_number": 7, "title": "Binomial Series for Any Index", "difficulty_level": "hard", "description": "Expansion of (1 + x)^n for negative or fractional n with |x| < 1, and approximations."},
+
+  {"unit_number": 8, "title": "Functions, Domain and Range", "difficulty_level": "easy", "description": "Definition of a function, domain, codomain and range."},
+  {"unit_number": 8, "title": "Types of Functions", "difficulty_level": "medium", "description": "One-one, onto and bijective functions; even and odd functions; linear and quadratic functions."},
+  {"unit_number": 8, "title": "Composite and Inverse Functions", "difficulty_level": "medium", "description": "Composition of functions and the inverse of a bijective function."},
+  {"unit_number": 8, "title": "Graphs of Functions", "difficulty_level": "medium", "description": "Graphs of linear, quadratic and modulus functions, and graphical solution of equations."},
+
+  {"unit_number": 9, "title": "Linear Inequalities", "difficulty_level": "easy", "description": "Linear inequalities in two variables and their graphs as half-planes."},
+  {"unit_number": 9, "title": "Feasible Region", "difficulty_level": "medium", "description": "Systems of linear inequalities, the feasible region and its corner points."},
+  {"unit_number": 9, "title": "Optimization by Corner Point Method", "difficulty_level": "hard", "description": "Objective functions, and maximizing or minimizing them over a feasible region."},
+
+  {"unit_number": 10, "title": "Fundamental Law of Trigonometry", "difficulty_level": "medium", "description": "cos(α − β) = cos α cos β + sin α sin β, and deductions from it."},
+  {"unit_number": 10, "title": "Sum and Difference Formulas", "difficulty_level": "medium", "description": "sin, cos and tan of the sum and difference of two angles; allied angles."},
+  {"unit_number": 10, "title": "Double and Half Angle Identities", "difficulty_level": "medium", "description": "Identities for sin 2θ, cos 2θ, tan 2θ, and half angles."},
+  {"unit_number": 10, "title": "Product-to-Sum and Sum-to-Product Formulas", "difficulty_level": "hard", "description": "Converting products of sines and cosines into sums, and vice versa."},
+
+  {"unit_number": 11, "title": "Solution of Right Triangles", "difficulty_level": "easy", "description": "Solving right-angled triangles, and angles of elevation and depression."},
+  {"unit_number": 11, "title": "Law of Sines, Cosines and Tangents", "difficulty_level": "medium", "description": "Solving oblique triangles with the laws of sines, cosines and tangents."},
+  {"unit_number": 11, "title": "Half Angle Formulas and Area of a Triangle", "difficulty_level": "medium", "description": "Half-angle formulas in terms of sides, and area of a triangle including Hero's formula."},
+  {"unit_number": 11, "title": "Circles Connected with a Triangle", "difficulty_level": "hard", "description": "Circum-radius, in-radius and escribed radii."},
+
+  {"unit_number": 12, "title": "Domain, Range and Period of Trigonometric Functions", "difficulty_level": "easy", "description": "Domain, range and periodicity of the six trigonometric functions."},
+  {"unit_number": 12, "title": "Graphs of Trigonometric Functions", "difficulty_level": "medium", "description": "Graphs of sin, cos, tan and their reciprocals over given intervals."},
+  {"unit_number": 12, "title": "Inverse Trigonometric Functions", "difficulty_level": "medium", "description": "Principal values, domains and ranges, graphs, and identities of inverse trigonometric functions."},
+  {"unit_number": 12, "title": "Solution of Trigonometric Equations", "difficulty_level": "hard", "description": "General solutions of trigonometric equations, and solutions within a given interval."}
+]

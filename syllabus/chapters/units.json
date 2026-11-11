@@ -1,0 +1,74 @@
+[
+  {
+    "unit_number": 1,
+    "title": "Complex Numbers",
+    "page_number": 1,
+    "description": "The imaginary unit i, algebra of complex numbers, conjugate and modulus, Argand diagram, polar form, and solving equations over the complex numbers."
+  },
+  {
+    "unit_number": 2,
+    "title": "Matrices & Determinants",
+    "page_number": 25,
+    "description": "Types and algebra of matrices, determinants and their properties, adjoint and inverse of a matrix, and solving systems of linear equations."
+  },
+  {
+    "unit_number": 3,
+    "title": "Vectors",
+    "page_number": 74,
+    "description": "Vectors in the plane and in space, unit vectors and direction cosines, scalar and vector products, scalar triple product, and their geometric and physical applications."
+  },
+  {
+    "unit_number": 4,
+    "title": "Sequences & Series",
+    "page_number": 124,
+    "description": "Sequences, arithmetic, geometric and harmonic progressions, their means, sums of finite and infinite series, and relations between A.M., G.M. and H.M."
+  },
+  {
+    "unit_number": 5,
+    "title": "Miscellaneous Series",
+    "page_number": 162,
+    "description": "Sigma notation, sums of powers of natural numbers, arithmetico-geometric series, and summation by the method of differences."
+  },
+  {
+    "unit_number": 6,
+    "title": "Permutation, Combination & Probability",
+    "page_number": 179,
+    "description": "Factorials, the fundamental principle of counting, permutations (linear, circular, with repetition), combinations, and elementary probability with addition and multiplication laws."
+  },
+  {
+    "unit_number": 7,
+    "title": "Mathematical Induction & Binomial Theorem",
+    "page_number": 214,
+    "description": "The principle of mathematical induction, the binomial theorem for positive integral index, general and middle terms, and the binomial series for any index."
+  },
+  {
+    "unit_number": 8,
+    "title": "Functions & Graphs",
+    "page_number": 238,
+    "description": "Functions, domain and range, types of functions, composite and inverse functions, and graphs of linear, quadratic and modulus functions."
+  },
+  {
+    "unit_number": 9,
+    "title": "Linear Programming",
+    "page_number": 267,
+    "description": "Linear inequalities in two variables, feasible regions, objective functions, and finding optimal solutions with the corner-point method."
+  },
+  {
+    "unit_number": 10,
+    "title": "Trigonometric Identities of Sum and Difference of Angles",
+    "page_number": 292,
+    "description": "The fundamental law of trigonometry, sum and difference formulas, double- and half-angle identities, and product-to-sum and sum-to-product conversions."
+  },
+  {
+    "unit_number": 11,
+    "title": "Application of Trigonometry",
+    "page_number": 317,
+    "description": "Solving right and oblique triangles with the laws of sines, cosines and tangents, half-angle formulas, area of a triangle, and circumscribed, inscribed and escribed circles."
+  },
+  {
+    "unit_number": 12,
+    "title": "Graphs of Trigonometric and Inverse Trigonometric Functions and Solution of Trigonometric Equations",
+    "page_number": 337,
+    "description": "Domain, range and period of trigonometric functions and their graphs, inverse trigonometric functions and principal values, and general solutions of trigonometric equations."
+  }
+]

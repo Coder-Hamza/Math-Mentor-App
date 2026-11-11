@@ -1,0 +1,49 @@
+[
+  {"unit_number": 1, "topic": "Introduction to Complex Numbers", "difficulty": "easy", "question_type": "short", "question_text": "Simplify i^27 + i^14."},
+  {"unit_number": 1, "topic": "Algebraic Operations on Complex Numbers", "difficulty": "medium", "question_type": "short", "question_text": "Express (3 + 4i)/(1 − 2i) in the form a + bi."},
+  {"unit_number": 1, "topic": "Equations in Complex Numbers", "difficulty": "hard", "question_type": "long", "question_text": "Solve the equation z^2 − 4z + 13 = 0 and show the roots on an Argand diagram."},
+
+  {"unit_number": 2, "topic": "Determinants and Their Properties", "difficulty": "easy", "question_type": "short", "question_text": "Evaluate the determinant |2 3; 1 4|."},
+  {"unit_number": 2, "topic": "Adjoint and Inverse of a Matrix", "difficulty": "medium", "question_type": "short", "question_text": "Find the inverse of the matrix A = [[3, 1], [5, 2]], if it exists."},
+  {"unit_number": 2, "topic": "Systems of Linear Equations", "difficulty": "hard", "question_type": "long", "question_text": "Solve the system x + y + z = 6, 2x − y + z = 3, x + 2y − z = 2 using Cramer's rule."},
+
+  {"unit_number": 3, "topic": "Vectors in Plane and Space", "difficulty": "easy", "question_type": "short", "question_text": "Find the magnitude of the vector 2i − 3j + 6k and a unit vector in its direction."},
+  {"unit_number": 3, "topic": "Scalar (Dot) Product", "difficulty": "medium", "question_type": "short", "question_text": "Find the angle between the vectors a = i + j and b = j + k."},
+  {"unit_number": 3, "topic": "Vector (Cross) Product", "difficulty": "medium", "question_type": "long", "question_text": "Find the area of the triangle whose vertices are A(1, 1, 1), B(2, 3, 4) and C(4, 3, 2)."},
+
+  {"unit_number": 4, "topic": "Arithmetic Progression", "difficulty": "easy", "question_type": "short", "question_text": "Find the 20th term of the A.P. 3, 7, 11, ..."},
+  {"unit_number": 4, "topic": "Geometric Progression", "difficulty": "medium", "question_type": "short", "question_text": "Find the sum of the infinite geometric series 1 + 1/3 + 1/9 + ..."},
+  {"unit_number": 4, "topic": "Relations between Arithmetic, Geometric and Harmonic Means", "difficulty": "hard", "question_type": "proof", "question_text": "If A, G and H are the arithmetic, geometric and harmonic means between two positive numbers a and b, prove that G^2 = AH."},
+
+  {"unit_number": 5, "topic": "Sigma Notation", "difficulty": "easy", "question_type": "short", "question_text": "Evaluate Σ (2k + 1) for k = 1 to 10."},
+  {"unit_number": 5, "topic": "Sums of Powers of Natural Numbers", "difficulty": "medium", "question_type": "short", "question_text": "Find the sum of the series 1^2 + 2^2 + 3^2 + ... + 20^2."},
+  {"unit_number": 5, "topic": "Method of Differences", "difficulty": "hard", "question_type": "long", "question_text": "Find the sum to n terms of the series 1/(1·2) + 1/(2·3) + 1/(3·4) + ..."},
+
+  {"unit_number": 6, "topic": "Permutations", "difficulty": "easy", "question_type": "short", "question_text": "In how many ways can the letters of the word PAKISTAN be arranged?"},
+  {"unit_number": 6, "topic": "Combinations", "difficulty": "medium", "question_type": "short", "question_text": "In how many ways can a committee of 3 men and 2 women be chosen from 7 men and 5 women?"},
+  {"unit_number": 6, "topic": "Addition and Multiplication Theorems of Probability", "difficulty": "hard", "question_type": "long", "question_text": "Two dice are thrown. Find the probability that the sum of the numbers is 8 or both numbers are even."},
+
+  {"unit_number": 7, "topic": "Principle of Mathematical Induction", "difficulty": "medium", "question_type": "proof", "question_text": "Prove by mathematical induction that 1 + 3 + 5 + ... + (2n − 1) = n^2 for every natural number n."},
+  {"unit_number": 7, "topic": "General Term and Middle Term", "difficulty": "medium", "question_type": "short", "question_text": "Find the term independent of x in the expansion of (x + 1/x)^10."},
+  {"unit_number": 7, "topic": "Binomial Series for Any Index", "difficulty": "hard", "question_type": "short", "question_text": "Using the binomial series, find the value of √99 correct to three decimal places."},
+
+  {"unit_number": 8, "topic": "Functions, Domain and Range", "difficulty": "easy", "question_type": "short", "question_text": "Find the domain and range of f(x) = √(x − 2)."},
+  {"unit_number": 8, "topic": "Composite and Inverse Functions", "difficulty": "medium", "question_type": "short", "question_text": "If f(x) = 2x + 3 and g(x) = x^2 − 1, find (f ∘ g)(x) and (g ∘ f)(x)."},
+  {"unit_number": 8, "topic": "Graphs of Functions", "difficulty": "medium", "question_type": "long", "question_text": "Draw the graph of y = x^2 − 4x + 3 and use it to solve x^2 − 4x + 3 = 0."},
+
+  {"unit_number": 9, "topic": "Linear Inequalities", "difficulty": "easy", "question_type": "short", "question_text": "Graph the solution region of the inequality 2x + 3y ≤ 6."},
+  {"unit_number": 9, "topic": "Feasible Region", "difficulty": "medium", "question_type": "short", "question_text": "Find the corner points of the feasible region determined by x + y ≤ 4, x ≥ 0, y ≥ 0."},
+  {"unit_number": 9, "topic": "Optimization by Corner Point Method", "difficulty": "hard", "question_type": "long", "question_text": "Maximize Z = 3x + 2y subject to x + y ≤ 4, x + 3y ≤ 6, x ≥ 0, y ≥ 0."},
+
+  {"unit_number": 10, "topic": "Sum and Difference Formulas", "difficulty": "easy", "question_type": "short", "question_text": "Without using a calculator, find the exact value of sin 75°."},
+  {"unit_number": 10, "topic": "Double and Half Angle Identities", "difficulty": "medium", "question_type": "proof", "question_text": "Prove that (1 − cos 2θ)/sin 2θ = tan θ."},
+  {"unit_number": 10, "topic": "Product-to-Sum and Sum-to-Product Formulas", "difficulty": "hard", "question_type": "proof", "question_text": "Prove that (sin 3x + sin x)/(cos 3x + cos x) = tan 2x."},
+
+  {"unit_number": 11, "topic": "Solution of Right Triangles", "difficulty": "easy", "question_type": "short", "question_text": "The angle of elevation of the top of a tower from a point 50 m from its foot is 30°. Find the height of the tower."},
+  {"unit_number": 11, "topic": "Law of Sines, Cosines and Tangents", "difficulty": "medium", "question_type": "long", "question_text": "Solve the triangle ABC in which a = 7, b = 8 and c = 9."},
+  {"unit_number": 11, "topic": "Circles Connected with a Triangle", "difficulty": "hard", "question_type": "long", "question_text": "Find the circum-radius R and the in-radius r of the triangle whose sides are 13, 14 and 15."},
+
+  {"unit_number": 12, "topic": "Domain, Range and Period of Trigonometric Functions", "difficulty": "easy", "question_type": "short", "question_text": "Find the period of y = 3 sin 2x."},
+  {"unit_number": 12, "topic": "Inverse Trigonometric Functions", "difficulty": "medium", "question_type": "short", "question_text": "Find the principal value of sin⁻¹(−1/2)."},
+  {"unit_number": 12, "topic": "Solution of Trigonometric Equations", "difficulty": "hard", "question_type": "long", "question_text": "Find the general solution of 2 sin^2 x − sin x − 1 = 0."}
+]
