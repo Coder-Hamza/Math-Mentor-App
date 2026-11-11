@@ -1,3 +1,5 @@
+# ✅ PROJECT COMPLETE — MathMentor AI v1.0 (Phases 0-6 done, 2026-11-11)
+
 # MathMentor AI — Claude Code Memory File
 # Read this FIRST at the start of every session.
 # This file is your complete project memory.
@@ -61,6 +63,7 @@ math-mentor-ai/
 │   │   ├── integration/ # 88 tests
 │   │   └── api/         # 127 tests
 │   └── alembic/
+├── mobile/test/         # 137 Flutter tests (98.3% line coverage)
 ├── syllabus/
 │   ├── chapters/units.json        # 12 units
 │   ├── topics/topics.json         # 52 topics
@@ -69,6 +72,8 @@ math-mentor-ai/
 │                                  # (16 mcq, 8 short, 8 long, 4 proof)
 ├── docs/
 │   ├── ARCHITECTURE.md
+│   ├── PRD.md
+│   ├── RELEASE.md       # signing key + APK build steps
 │   ├── DEVELOPMENT_LOG.md
 │   └── TESTING.md
 ├── CLAUDE.md            # THIS FILE — read every session
@@ -166,7 +171,7 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   test/helpers.dart), no real API calls; backend unchanged 544
 - All 7 gates: PASS
 
-### Phase 5 — Practice & Progress Tracking ✅ COMPLETE (awaiting approval for Phase 6)
+### Phase 5 — Practice & Progress Tracking ✅ COMPLETE
 - Migration 379d357d50ab: practice_questions.correct_answer / answer_explanation /
   options (JSON, MCQ only; CHECK mcq <=> options NOT NULL; JSON(none_as_null=True)),
   student_progress.correct_count / points, new table practice_attempts
@@ -187,8 +192,27 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   Flutter 122, 98.3% line coverage
 - All 7 gates: PASS
 
+### Phase 6 — Final Polish, Phone Testing Prep & APK Build ✅ COMPLETE
+- API URL: default emulator 10.0.2.2; --dart-define=API_TARGET=usb -> 127.0.0.1
+  (with adb reverse tcp:8000 tcp:8000); --dart-define=API_BASE_URL=... overrides both
+- Requests time out after 30 s (tutor 40 s) with retry; silent refresh + retry tested
+- App icon (+ - x / on #1565C0): mobile/tool/make_icon.py -> assets/icon ->
+  `dart run flutter_launcher_icons` (dev dependency, config in pubspec.yaml)
+- Empty states (AppStrings.noProgress / noWeakTopics), DismissKeyboard in
+  MaterialApp.builder, tutor scrolls on keyboard open, tutor back-guard for unsent
+  question, Home back -> Units tab
+- ProgressService caches last progress (shown instantly, background refresh), wiped on
+  logout; units/topics/formulas cached in UnitsProvider
+- Android: minSdk 24 explicit; network_security_config per build type (release: HTTPS
+  only except 127.0.0.1/localhost; debug/profile: cleartext); release signing from
+  android/key.properties (gitignored, template key.properties.example), falls back to
+  debug key when absent. NOT compiled yet (no Android SDK).
+- docs/RELEASE.md; README rewritten as full setup + phone test guide
+- Tests: backend 842, 100% coverage (unchanged); Flutter 137, 98.3% line coverage
+- All 7 gates: PASS
+
 ## Current Phase
-### None in progress — waiting for user approval to start Phase 6
+### None — PROJECT COMPLETE (v1.0). Any further work needs explicit user approval.
 
 ## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)
@@ -211,11 +235,11 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
 9. All 7 quality gates must pass
 10. Update CLAUDE.md and DEVELOPMENT_LOG.md
 
-## Upcoming Phases (Do Not Start Without Approval)
-(Phases 0-5 done. The AI tutor chat screen was delivered in Phase 4; the user
-re-numbered Practice & Progress as Phase 5.)
-Phase 6+: as specified by the user (remaining from the original plan: polish,
-offline support, final testing)
+## Possible Follow-ups (Do Not Start Without Approval)
+- Install Android Studio, run on a real phone, build the signed APK (README §3-6)
+- Login rate limiting + token revocation + HTTPS hosting before public use
+- Persistent offline cache across app restarts (v1.1 candidate)
+- Teacher review of topics/answers against the DCAR textbook
 
 ## Important Notes
 - Topics list is best-guess reconstruction — 
@@ -224,7 +248,7 @@ offline support, final testing)
   every short/long answer must be SymPy-checkable (a test enforces it). Proofs are
   stored but never served for practice (not gradable without AI).
 - Android SDK not yet installed — needed for 
-  flutter run and APK builds
+  flutter run and APK builds (flutter doctor 2026-11-11: Android toolchain X)
 - Postgres superuser password was changed after 
   Phase 0 security review
 - Ruff security rules relaxed in test files only 

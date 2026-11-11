@@ -632,3 +632,115 @@ I seeded the dev DB, then called random, submit (wrong answer), progress and wea
 temporary user was deleted afterwards.
 
 **Phase 5 status: COMPLETE. Waiting for approval before starting Phase 6.**
+
+## Phase 6: Final polish, phone testing prep & APK build (2026-11-11)
+
+This is the final phase: **MathMentor AI v1.0 is complete.** There were no backend code
+changes and no new migration (still `379d357d50ab`).
+
+### 6.1 Configuration checks
+- **API URL:** chosen at build time.
+  - The default is the emulator, `http://10.0.2.2:8000`.
+  - `--dart-define=API_TARGET=usb` uses `http://127.0.0.1:8000`, for use with
+    `adb reverse tcp:8000 tcp:8000`.
+  - `--dart-define=API_BASE_URL=...` overrides both.
+  - The rule lives in `ApiConfig.baseUrl` and is tested through `ApiConfig.resolveBaseUrl`.
+- **Manifest:**
+  - The `INTERNET` permission is in the main manifest, so it applies to all builds.
+  - A new `network_security_config.xml` per build type controls plain HTTP. The main
+    (release) config is HTTPS-only except `127.0.0.1` and `localhost`, which is loopback
+    and so safe. The debug and profile overlays allow plain HTTP everywhere.
+- **minSdk** is now an explicit `24`, instead of `flutter.minSdkVersion`.
+
+### 6.2 UI polish
+- **App icon:** `+ − × ÷` in amber and white on the app blue (#1565C0).
+  - Drawn with Pillow by `mobile/tool/make_icon.py`, then generated with
+    `flutter_launcher_icons` 0.14.4 into the legacy mipmaps plus an adaptive icon (v26+).
+- **Loading states:** every screen that calls the API already had a loader (splash,
+  auth buttons, units, topics, formulas, tutor, practice, progress). The Progress screen
+  now also shows a thin refresh bar over cached data.
+- **Empty states:**
+  - No progress: "Abhi koi sawaal hall nahi kiya, practice shuru karein! 📚", with a
+    *Practice shuru karein* button.
+  - No weak topics: "Bohat acha! Koi kamzor topic nahi hai! 🌟".
+- **Keyboard:**
+  - A `DismissKeyboard` wrapper in `MaterialApp.builder` closes the keyboard when the
+    student taps outside a field. Buttons and fields still win their own taps.
+  - The tutor listens to `didChangeMetrics` and scrolls to the latest answer when the
+    keyboard opens.
+- **Back button:**
+  - Logout confirmation already existed.
+  - The tutor asks before discarding a typed but unsent question. A question pre-filled
+    from *Recent questions* is already saved, so it doesn't ask in that case.
+  - Back on the Practice or Progress tab returns to Units instead of closing the app.
+
+### 6.3 Error resilience
+- Normal requests now time out after **30 s** (was 15 s) and show "Request timeout,
+  dobara try karein" with a retry button. The tutor keeps its 40 s budget (the backend
+  caps at 30 s), so a ~10 s Gemini answer is comfortable.
+- Silent token refresh followed by a retry of the original request already existed in
+  `ApiService` (Phase 4). It is now also covered by a full-app widget test: the topics
+  call gets a 401, the app refreshes, the call is retried, and the topics appear without
+  sending the student to Login.
+
+### 6.4 Performance
+- Units, topics and formulas were already cached in memory by `UnitsProvider`. A new
+  test checks that each is fetched only once.
+- `ProgressService` now keeps the last summary and weak topics. `ProgressScreen` shows
+  them instantly and refreshes in the background. The cache is wiped on logout, so the
+  next student never sees it.
+
+### 6.5 Android SDK
+`flutter doctor` still reports **Unable to locate Android SDK**. Android Studio is not
+installed, so the app has still never run on a device and no APK could be built in this
+session. The exact setup steps are in `README.md` §3. The Visual Studio warning only
+matters for Windows desktop builds.
+
+### 6.7 Release build preparation
+- `android/app/build.gradle.kts` reads `android/key.properties` when it exists, and signs
+  release builds with it. Otherwise it falls back to the debug key, so that
+  `flutter run --release` works.
+- `android/key.properties.example` is the template. `key.properties`, `*.jks` and
+  `*.keystore` were already gitignored.
+- `docs/RELEASE.md` covers keytool, `key.properties`, URL choice, `flutter build apk
+  --release`, split-per-ABI, App Bundle, `apksigner verify`, versioning and a checklist.
+- **Not verified:** the Gradle signing block and the network security config have not
+  been compiled, because there is no Android SDK. Run `flutter build apk --release` once
+  the SDK is installed.
+
+### Tests
+- **Backend:** 842 passing, 100% coverage (unchanged).
+- **Flutter:** 137 passing (+15), **98.3% line coverage**.
+  - The new `test/screens/polish_test.dart` covers:
+    - URL resolution and timeouts.
+    - Tap-outside closes the keyboard.
+    - The keyboard scrolls the chat.
+    - The tutor back-button guard (4 cases).
+    - Home back goes to Units.
+    - Cached progress with a background refresh.
+    - Logout wipes the progress cache.
+    - Units and topics are fetched once.
+    - Silent refresh, then retry, mid-session.
+  - Progress tests were updated for the new empty states.
+
+### Quality gates
+| # | Gate | Result |
+|---|---|---|
+| 1 | ruff format --check | PASS |
+| 2 | ruff check | PASS |
+| 3 | mypy app | PASS |
+| 4 | pytest -v | PASS (842) |
+| 5 | coverage | PASS (100%) |
+| 6 | flutter analyze | PASS |
+| 7 | flutter test | PASS (137) |
+
+### Known limitations (v1.0)
+- Never run on a real device yet, because the Android SDK is missing. Follow
+  `README.md` §3–5.
+- Tokens are stateless, with no revocation, and there is no login rate limiting. Add both
+  before any public deployment, and serve the backend over HTTPS.
+- The topic list is a best-guess reconstruction and must be checked against the DCAR
+  textbook.
+- The caches are in memory only, so there is no offline mode across app restarts.
+
+**PROJECT COMPLETE: MathMentor AI v1.0.**

@@ -41,27 +41,78 @@ class TutorScreen extends StatefulWidget {
   State<TutorScreen> createState() => _TutorScreenState();
 }
 
-class _TutorScreenState extends State<TutorScreen> {
+class _TutorScreenState extends State<TutorScreen> with WidgetsBindingObserver {
   late final TextEditingController _input = TextEditingController(
     text: widget.initialQuestion,
   );
   final ScrollController _scroll = ScrollController();
   final List<TutorExchange> _exchanges = <TutorExchange>[];
   TutorLanguage _language = TutorLanguage.urduEnglish;
+  bool _keyboardOpen = false;
 
   bool get _busy => _exchanges.any((TutorExchange e) => e.loading);
+
+  /// A typed question that was never sent — leaving would lose it. A question that
+  /// was only pre-filled from "Recent questions" is already saved, so it doesn't count.
+  bool get _hasUnsentQuestion {
+    final String text = _input.text.trim();
+    return text.isNotEmpty && text != (widget.initialQuestion ?? '').trim();
+  }
 
   @override
   void initState() {
     super.initState();
     _input.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// When the keyboard opens the list gets shorter; keep the latest answer visible.
+  @override
+  void didChangeMetrics() {
+    if (!mounted) {
+      return;
+    }
+    final bool open = View.of(context).viewInsets.bottom > 0;
+    if (open && !_keyboardOpen) {
+      _scrollToEnd();
+    }
+    _keyboardOpen = open;
+  }
+
+  Future<void> _confirmLeave() async {
+    final bool? leave = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Sawaal bheja nahi gaya'),
+        content: const Text(
+          'Aap ka likha hua sawaal abhi send nahi hua. Wapas jaane se yeh mit jayega.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            key: const ValueKey<String>('stay-button'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Yahin rahein'),
+          ),
+          FilledButton(
+            key: const ValueKey<String>('discard-button'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Chhor dein'),
+          ),
+        ],
+      ),
+    );
+    if ((leave ?? false) && mounted) {
+      _input.clear();
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _send() async {
@@ -121,6 +172,18 @@ class _TutorScreenState extends State<TutorScreen> {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
+    return PopScope<Object?>(
+      canPop: !_hasUnsentQuestion,
+      onPopInvokedWithResult: (bool didPop, Object? _) {
+        if (!didPop) {
+          _confirmLeave();
+        }
+      },
+      child: _buildScaffold(text),
+    );
+  }
+
+  Widget _buildScaffold(TextTheme text) {
     return Scaffold(
       appBar: AppBar(
         title: Column(

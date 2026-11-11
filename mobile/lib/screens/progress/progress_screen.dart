@@ -12,6 +12,9 @@ import '../../widgets/loading_widget.dart';
 import '../../widgets/progress_widgets.dart';
 
 /// Points, accuracy, streak, per-unit progress bars and weak topics.
+///
+/// The last loaded progress (cached in [ProgressService]) is shown immediately;
+/// fresh data is fetched in the background with a thin progress bar on top.
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
 
@@ -28,6 +31,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
   @override
   void initState() {
     super.initState();
+    final ProgressService service = context.read<ProgressService>();
+    _summary = service.cachedSummary;
+    _weakTopics = service.cachedWeakTopics ?? const <WeakTopic>[];
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -58,6 +64,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  void _practiseAll() {
+    Navigator.of(context)
+        .pushNamed(Routes.practice, arguments: const PracticeRouteArgs());
   }
 
   void _practiseUnit(WeakTopic topic) {
@@ -99,7 +110,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: ErrorView(error: _error!, compact: true, onRetry: _load),
             ),
-          if (_loading) const LinearProgressIndicator(),
+          if (_loading)
+            const LinearProgressIndicator(
+              key: ValueKey<String>('progress-refreshing'),
+            ),
+          if (summary.totalAttempted == 0)
+            _EmptyProgress(onPractice: _practiseAll),
           StatsCard(summary: summary),
           _SectionTitle('Unit progress', style: text),
           for (final UnitProgress unit in summary.units)
@@ -114,7 +130,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
               child: Text(
                 summary.totalAttempted == 0
                     ? 'Practice shuru karein, phir yahan aap ke kamzor topics nazar aayenge.'
-                    : 'Koi weak topic nahi. Shabash! 🌟',
+                    : AppStrings.noWeakTopics,
                 key: const ValueKey<String>('no-weak-topics'),
                 style: text.bodyMedium?.copyWith(color: AppColors.unverified),
               ),
@@ -127,6 +143,40 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 onPractice: () => _practiseUnit(topic),
               ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown above the (all-zero) stats for a student who has not solved anything yet.
+class _EmptyProgress extends StatelessWidget {
+  const _EmptyProgress({required this.onPractice});
+
+  final VoidCallback onPractice;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const ValueKey<String>('empty-progress'),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: <Widget>[
+            Text(
+              AppStrings.noProgress,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              key: const ValueKey<String>('start-practice'),
+              onPressed: onPractice,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Practice shuru karein'),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,0 +1,9 @@
+# Release signing template. Copy to android/key.properties (gitignored) and fill in.
+# NEVER commit key.properties or the .jks keystore. See docs/RELEASE.md.
+#
+# storeFile: absolute path to the keystore you created with keytool, using forward
+# slashes (or doubled backslashes) on Windows.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=C:/Users/YOUR_NAME/keys/mathmentor-upload.jks

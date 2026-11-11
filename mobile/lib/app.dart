@@ -14,6 +14,23 @@ import 'services/practice_service.dart';
 import 'services/progress_service.dart';
 import 'services/storage_service.dart';
 
+/// Closes the on-screen keyboard when the student taps anywhere outside a text
+/// field. Buttons and fields still win their own taps (deepest recogniser wins).
+class DismissKeyboard extends StatelessWidget {
+  const DismissKeyboard({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: child,
+    );
+  }
+}
+
 /// App root: builds services/providers and sends the user to Login whenever the
 /// session ends (logout or an unrecoverable 401).
 class MathMentorApp extends StatefulWidget {
@@ -65,6 +82,7 @@ class _MathMentorAppState extends State<MathMentorApp> {
     if (_lastStatus == AuthStatus.authenticated &&
         status == AuthStatus.unauthenticated) {
       _units.clear();
+      _progress.clearCache();
       _navigatorKey.currentState?.pushNamedAndRemoveUntil(
         Routes.login,
         (_) => false,
@@ -101,6 +119,8 @@ class _MathMentorAppState extends State<MathMentorApp> {
         home: widget.home,
         initialRoute: widget.home == null ? Routes.splash : null,
         onGenerateRoute: onGenerateRoute,
+        builder: (BuildContext context, Widget? child) =>
+            DismissKeyboard(child: child ?? const SizedBox.shrink()),
       ),
     );
   }

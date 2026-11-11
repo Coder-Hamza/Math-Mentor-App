@@ -119,7 +119,12 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Koi weak topic nahi. Shabash! 🌟'), findsOneWidget);
+    expect(find.text(AppStrings.noWeakTopics), findsOneWidget);
+    expect(
+      find.text('Bohat acha! Koi kamzor topic nahi hai! 🌟'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey<String>('empty-progress')), findsNothing);
   });
 
   testWidgets('new student is invited to start practising', (
@@ -139,8 +144,20 @@ void main() {
     );
     expect(statText(tester, 'stat-points').data, '🏆 0');
     expect(statText(tester, 'stat-accuracy').data, '0%');
-    expect(find.textContaining('Practice shuru karein'), findsOneWidget);
+    expect(
+      find.text('Abhi koi sawaal hall nahi kiya, practice shuru karein! 📚'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('phir yahan aap ke kamzor topics'),
+      findsOneWidget,
+    );
     expect(bar(tester, 1).value, 0.0);
+
+    await tester.tap(find.byKey(const ValueKey<String>('start-practice')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PracticeScreen), findsOneWidget);
+    expect(find.text('Practice'), findsOneWidget);
   });
 
   testWidgets('pull to refresh reloads both requests', (

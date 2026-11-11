@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release: HTTPS everywhere, except plain HTTP to this phone itself (127.0.0.1 /
+     localhost), which is what `adb reverse tcp:8000 tcp:8000` uses for USB testing.
+     Loopback traffic never leaves the device. A public backend must use HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug/profile only: the local backend is plain HTTP (10.0.2.2 emulator,
+     127.0.0.1 via adb reverse, or the PC's LAN IP over Wi-Fi). Overrides the
+     stricter release config in src/main/res/xml. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

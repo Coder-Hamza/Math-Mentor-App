@@ -17,7 +17,7 @@ import '../../core/theme.dart';
 ///
 /// Tabs are built the first time they are opened (so Practice does not fetch questions
 /// until the student goes there). Practice keeps its state while switching tabs; Progress
-/// reloads every time it is opened, so it always shows the latest points.
+/// shows its cached data instantly and refreshes every time it is opened.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -46,6 +46,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Android back on the Practice/Progress tab goes to Units instead of closing the app.
+    return PopScope<Object?>(
+      canPop: _tab == HomeScreen.unitsTab,
+      onPopInvokedWithResult: (bool didPop, Object? _) {
+        if (!didPop) {
+          _select(HomeScreen.unitsTab);
+        }
+      },
+      child: _buildScaffold(),
+    );
+  }
+
+  Widget _buildScaffold() {
     return Scaffold(
       body: IndexedStack(
         index: _tab,
