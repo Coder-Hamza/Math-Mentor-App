@@ -36,15 +36,16 @@ student must be verified by SymPy before it is returned.**
    identities and equations, and so on).
 5. **AI service (Gemini)** gets a scrubbed prompt and returns *structured JSON*: steps, final
    answer, and hints in Urdu/English.
-6. **Verification:** SymPy checks Gemini's final answer, and each checkable intermediate step,
-   against its own result (symbolic equivalence via `simplify(a - b) == 0`, numeric
-   spot-checks, equation substitution).
-   - Match: the response is returned with `verified: true`.
-   - Mismatch: one retry with corrective feedback. If it still fails, the response is returned
-     with `verified: false` and the SymPy answer replaces the LLM answer. A wrong answer is
-     never shown as correct.
-   - Not machine-checkable (proofs, word problems): returned with `verification: "unverifiable"`
-     and the UI labels it.
+6. **Verification:** Gemini returns up to 10 `checks`. Each is an `{lhs, rhs}` pair in SymPy
+   syntax that must be either an identity or a numeric fact, such as the answer substituted
+   back into the equation. SymPy evaluates each pair at 5 or more random points, using
+   numeric `evalf` only and a hardened parser (see `services/mathematics/verifier.py`).
+   - All checkable claims hold: `sympy_verified: true`, status `verified`.
+   - Any claim is wrong: status `failed`, `sympy_verified: false`, and a warning. The answer
+     is still shown, and a wrong answer is never labelled verified. There is no automatic
+     retry, which saves free-tier quota.
+   - Nothing could be checked (proofs, prose, plain-text replies): status `unverifiable`, with
+     a warning.
 7. **Pydantic** validates the final response model. Invalid LLM JSON is a handled error, not a
    500.
 8. **Repository** stores the attempt and progress in PostgreSQL.
@@ -101,9 +102,14 @@ Alembic data migrations or a seed script.
 
 - SDK: `google-genai`. The model is configured by `GEMINI_MODEL` and is not hardcoded.
 - Structured output: a JSON schema derived from Pydantic models, then validated with Pydantic.
-- Guardrails: request timeout, bounded retries, a process-wide rate limiter
-  (`GEMINI_RATE_LIMIT_PER_MINUTE`) to stay inside free-tier quotas, and graceful degradation
-  (a SymPy-only answer) when quota runs out.
+- Guardrails:
+  - A 30-second budget for the endpoint: Gemini gets 25 s and SymPy gets 5 s.
+  - Retries only for transient 5xx and network errors.
+  - A process-wide rate limiter with per-minute and per-day limits that logs a warning at
+    80% of either limit.
+  - Errors that map to friendly responses: 429 with `Retry-After` (quota), 503 (unavailable
+    or not configured), 504 (timeout), 502 (empty reply).
+  - Non-JSON replies are shown as plain text marked unverifiable.
 - Privacy: `services/ai` accepts only a `TutorPrompt` schema that has no PII fields. A scrubber
   also redacts phone numbers, emails, and CNIC patterns from free text.
 - Tests: the Gemini client sits behind a protocol interface and is faked in unit and API tests.

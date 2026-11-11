@@ -247,4 +247,97 @@ The integration fixtures refuse to run against any database whose name doesn't c
 - **No schema change:** the database is still at revision `f7794967963c`. Topic → formulas and
   questions now return in id order, which is ORM-only and needs no migration.
 
-**Phase 2 status: COMPLETE. Waiting for approval before starting Phase 3.**
+**Phase 2 status: COMPLETE.** Committed as `0e59ab3`, together with `docs/TESTING.md` and
+`docs/PRD.md`.
+
+---
+
+## Phase 3: Gemini AI Integration + SymPy Verification (2026-11-11)
+
+### What was built
+| Module | Responsibility |
+|---|---|
+| `schemas/ai_schemas.py` | `TutorRequest` (question ≤ 500 characters, `topic_id`, `language` = `urdu_english` or `english`); `TutorResponse`; `VerificationStatus`; and `GeminiTutorAnswer`, the JSON contract for Gemini, which adds a `checks` field |
+| `services/ai/prompts.py` | `SYSTEM_PROMPT` and `build_prompt`, built from `TutorPrompt`. That model has no personal fields, and `extra="forbid"` makes adding one an error. |
+| `services/ai/privacy.py` | `scrub_pii` removes emails, Pakistani mobile numbers and CNICs from the question |
+| `services/ai/gemini_service.py` | Builds the google-genai client lazily, requests JSON via `response_schema`, retries 5xx and network errors with backoff, maps every error to an `AIServiceError`, and falls back to plain text when the JSON is unusable |
+| `services/ai/rate_limiter.py` | Sliding-window limits per minute and per day; logs a warning at 80% and returns 429 with `Retry-After` when full |
+| `services/mathematics/verifier.py` | `verify_identity`, `verify_numeric` and `verify_expression`, each returning `VerificationResult` (`status`, `is_valid`, `confidence`, `error_message`, `points_checked`) |
+| `services/tutor/tutor_service.py` | Loads the topic, unit and syllabus formulas from the DB, calls Gemini, runs SymPy in a worker thread with a timeout, combines the results and builds the response |
+| `api/routes/tutor.py` | `POST /api/v1/tutor/ask` (requires a JWT). The user is authenticated but deliberately **not** passed to the service. |
+
+### SymPy verification
+- **Method:** each claim is evaluated numerically at 5 or more random rational points (one
+  point if there are no variables). Sampling is seeded from the claim, so results are
+  reproducible.
+- **Status:**
+  - `verified`: every claim held.
+  - `failed`: at least one claim is wrong. The confidence is the share of points or claims
+    that agreed.
+  - `unverifiable`: nothing could be checked. This is not the same as wrong.
+- **Hardening:** `parse_expr` uses `eval`, so Gemini's text is treated as hostile.
+  - Only certain characters are allowed.
+  - Attribute access, dunder names and Python keywords are rejected.
+  - The namespace has no builtins at all.
+  - Functions are built **unevaluated**. Otherwise `factorial(10**9)` would be computed while
+    parsing, which is a denial-of-service risk found and fixed during this phase.
+  - There are limits on length, node count, numeric exponents, power-tower depth and
+    factorial size.
+  - Evaluation is numeric only (`evalf`).
+- **Accuracy bugs found by the tests and fixed:**
+  1. Prose such as "the left side" was split into the symbols s·i·d·e, which produced a false
+     "failed". Unknown multi-letter words are now reported as *unverifiable*.
+  2. SymPy's `split_symbols` turned `a1` into `a*1`, so `a1 + a2 = 3a` would have *verified*.
+     That transformation has been removed.
+
+### Error handling
+| Situation | HTTP | Code |
+|---|---|---|
+| Quota (Google 429 or the local limiter) | 429 + `Retry-After` | `ai_quota_exceeded` |
+| Gemini 5xx or network failure (after retries) | 503 | `ai_unavailable` |
+| Key rejected, model retired (404), or no key | 503 | `ai_not_configured` |
+| Gemini took longer than its 25 s budget | 504 | `ai_timeout` |
+| Empty reply | 502 | `ai_bad_response` |
+| Non-JSON reply | **200** | plain-text answer, `unverifiable` plus a warning |
+| SymPy timeout (5 s) | **200** | `unverifiable` plus a warning |
+
+### Real Gemini check (one manual call, not a test)
+`gemini-2.5-flash` returned **HTTP 404: "no longer available to new users"** for this API key.
+The model list now offers `gemini-3.x` flash and flash-lite models. The pipeline handled the
+failure correctly: a friendly 503 and no crash. A 404 now maps to `ai_not_configured` and
+logs Google's message. **The model was not changed.** The user must choose a free-tier model
+and set `GEMINI_MODEL`.
+
+### Tests: 512 passing (+188)
+| Suite | Tests | New in Phase 3 |
+|---|---|---|
+| unit | 354 | Verifier (correct and wrong identities, unverifiable input, 23 hostile or expensive inputs, unicode); Gemini service (prompt contents, PII scrubbing, JSON parsing and fallback, every error mapping, retries and backoff, timeout); rate limiter; result summarizing |
+| integration | 62 | `TutorService` against the real DB and real SymPy with fake Gemini: verified, failed, unverifiable, partial, plain text, unknown topic, Gemini timeout, SymPy timeout |
+| api | 96 | `/tutor/ask`: 200, 401, 422 (7 bad payloads), 404, 429, 502, 503 (×3), 504; a mocked `TutorService`; a **privacy test** checking that a registered user's name, email, phone, password and token never reach Gemini |
+
+Gemini is faked in every test (`tests/fakes.py`).
+
+### Quality gates
+| # | Gate | Result |
+|---|---|---|
+| 1 | ruff format --check | PASS |
+| 2 | ruff check | PASS |
+| 3 | mypy app (strict) | PASS (56 files; SymPy is marked as untyped) |
+| 4 | pytest -v | PASS (512/512) |
+| 5 | coverage | PASS (100%) |
+| 6 | flutter analyze | PASS |
+| 7 | flutter test | PASS |
+
+### Decisions
+- **`checks` field:** added to Gemini's JSON contract. Prose steps can't be verified, so Gemini
+  must also emit SymPy-checkable equalities.
+- **`ask_tutor` return type:** it returns a `GeminiResult`, not a `TutorResponse`, because
+  Gemini can't know `sympy_verified`. `TutorService` builds the `TutorResponse`.
+- **Extra response field:** `verification_status` was added so the UI can tell "wrong" from
+  "unverifiable".
+- **No retry on failed checks:** a failed check doesn't trigger a second Gemini call, to
+  protect free-tier quota.
+- **Timeouts:** 30 s total, split into 25 s for Gemini and 5 s for SymPy.
+  `GEMINI_TIMEOUT_SECONDS` changed from 30 to 25.
+
+**Phase 3 status: COMPLETE. Waiting for approval before starting Phase 4.**

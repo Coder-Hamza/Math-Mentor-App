@@ -121,8 +121,26 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
 - All 7 gates: PASS
 - No new migration (still f7794967963c)
 
+### Phase 3 — Gemini AI Integration + SymPy Verification ✅ COMPLETE
+- POST /api/v1/tutor/ask (JWT) -> TutorResponse {question, explanation,
+  steps, formulas_used, sympy_verified, verification_confidence,
+  verification_status, topic, unit, warning}
+- services/ai: gemini_service (injectable transport, retries 5xx only),
+  prompts (TutorPrompt has NO personal fields), privacy (scrubs email/
+  phone/CNIC), rate_limiter (per-minute + per-day, warns at 80%)
+- services/mathematics/verifier.py: verify_identity / verify_numeric /
+  verify_expression; >=5 random points; hardened parser (no builtins,
+  unevaluated functions, size/exponent/tower limits, prose -> unverifiable)
+- services/tutor/tutor_service.py: DB context -> Gemini -> SymPy -> response
+- Errors: 429 ai_quota_exceeded (+Retry-After), 503 ai_unavailable /
+  ai_not_configured, 504 ai_timeout, 502 ai_bad_response
+- Timeouts: TUTOR 30s total = Gemini 25s budget + SymPy 5s
+- Tests: 512/512 pass (unit 354, integration 62, api 96), 100% coverage;
+  Gemini is ALWAYS faked in tests (tests/fakes.py)
+- All 7 gates: PASS
+
 ## Current Phase
-### None in progress — waiting for user approval to start Phase 3
+### None in progress — waiting for user approval to start Phase 4
 
 ## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)
@@ -167,4 +185,12 @@ Phase 7: Polish, offline support, final testing
   run against a DB whose name lacks "test"
 - Tokens are stateless: no logout/revocation yet; no login rate limiting
   yet — consider before production
-- docs/TESTING.md and docs/PRD.md are planned but not yet written
+- docs/TESTING.md and docs/PRD.md written (Phase 3 start)
+- !! GEMINI MODEL: gemini-2.5-flash returns HTTP 404 "no longer available
+  to new users" for this API key (verified 2026-11-11 with one real call).
+  The app degrades to 503 ai_not_configured. User must choose a model the
+  free tier allows and set GEMINI_MODEL in backend/.env (e.g. a current
+  flash/flash-lite model) — do not change it without user approval.
+- SymPy has no type stubs: mypy override ignore_missing_imports for sympy
+- Never use the Edit/Write tools to write "\uXXXX" escapes — they get
+  converted to literal characters (RUF001). Use a script with chr(92).

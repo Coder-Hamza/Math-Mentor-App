@@ -55,6 +55,10 @@ strict = true
 plugins = ["pydantic.mypy"]
 warn_unused_configs = true
 
+[[tool.mypy.overrides]]
+module = ["sympy", "sympy.*"]  # SymPy ships no type information
+ignore_missing_imports = true
+
 # ---------------- Pytest ----------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]

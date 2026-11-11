@@ -7,11 +7,12 @@ from app.api.errors import register_exception_handlers
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
 
-API_VERSION = "0.2.0"
+API_VERSION = "0.3.0"
 
 OPENAPI_TAGS = [
     {"name": "auth", "description": "Register, log in, refresh tokens, current user."},
     {"name": "syllabus", "description": "Sindh Board HSC-I units, topics, formulas, questions."},
+    {"name": "tutor", "description": "AI tutor (Gemini) with SymPy verification."},
     {"name": "system", "description": "Health checks."},
 ]
 

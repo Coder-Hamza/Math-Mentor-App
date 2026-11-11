@@ -38,8 +38,7 @@ def error_response(
 
 async def app_error_handler(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppError)  # noqa: S101 (narrowing for the type checker)
-    headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
-    return error_response(exc.status_code, exc.code, exc.message, headers=headers)
+    return error_response(exc.status_code, exc.code, exc.message, headers=exc.headers or None)
 
 
 async def http_exception_handler(_: Request, exc: Exception) -> JSONResponse:

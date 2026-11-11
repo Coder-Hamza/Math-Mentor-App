@@ -38,8 +38,22 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=60, gt=0)
     refresh_token_expire_days: int = Field(default=7, gt=0)
 
+    # ---- Gemini (free tier) ----
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-2.5-flash"
+    gemini_timeout_seconds: float = Field(default=25, gt=0)  # per attempt
+    gemini_max_retries: int = Field(default=2, ge=0, le=5)  # only for transient 5xx/network
+    gemini_rate_limit_per_minute: int = Field(default=10, gt=0)
+    gemini_rate_limit_per_day: int = Field(default=250, gt=0)
+
+    # ---- Tutor pipeline ----
+    # Hard cap for POST /tutor/ask: Gemini gets (tutor - sympy) seconds, SymPy gets the rest.
+    tutor_timeout_seconds: float = Field(default=30, gt=0)
+    sympy_timeout_seconds: float = Field(default=5, gt=0)
+
+    @property
+    def gemini_budget_seconds(self) -> float:
+        return max(self.tutor_timeout_seconds - self.sympy_timeout_seconds, 1.0)
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -1,0 +1,87 @@
+"""Test doubles for Gemini. The real API is NEVER called from tests."""
+
+import asyncio
+import json
+from types import SimpleNamespace
+from typing import Any
+
+from google.genai import errors as genai_errors
+
+from app.core.config import Settings, get_settings
+from app.services.ai.gemini_service import GeminiService
+from app.services.ai.rate_limiter import RateLimiter
+
+GOOD_ANSWER: dict[str, Any] = {
+    "explanation": "Hum double-angle formula use karenge. Final answer: sin 2x = 2 sin x cos x.",
+    "steps": [
+        "Step 1: sin(A + B) = sin A cos B + cos A sin B likhein.",
+        "Step 2: A = B = x rakhein.",
+        "Step 3: sin 2x = 2 sin x cos x. Shabash!",
+    ],
+    "formulas_used": ["Sine of a sum: sin(A+B) = sinA cosB + cosA sinB"],
+    "checks": [
+        {"lhs": "sin(2*x)", "rhs": "2*sin(x)*cos(x)"},
+        {"lhs": "sin(x + y)", "rhs": "sin(x)*cos(y) + cos(x)*sin(y)"},
+    ],
+}
+
+
+def answer_json(**overrides: Any) -> str:
+    return json.dumps(GOOD_ANSWER | overrides)
+
+
+def api_error(code: int) -> genai_errors.APIError:
+    payload = {"error": {"code": code, "message": "simulated", "status": "SIMULATED"}}
+    cls = genai_errors.ClientError if code < 500 else genai_errors.ServerError
+    return cls(code, payload)
+
+
+class FakeGenerate:
+    """Stands in for ``client.aio.models.generate_content``.
+
+    Each outcome is used once in order (the last one repeats): a ``str`` becomes the response
+    text, an exception is raised, ``None`` gives a response without text, and a float sleeps
+    that many seconds (to simulate a hang).
+    """
+
+    def __init__(self, *outcomes: object) -> None:
+        self.outcomes = list(outcomes) or [answer_json()]
+        self.calls: list[dict[str, Any]] = []
+
+    async def __call__(self, *, model: str, contents: str, config: Any) -> Any:
+        self.calls.append({"model": model, "contents": contents, "config": config})
+        outcome = self.outcomes.pop(0) if len(self.outcomes) > 1 else self.outcomes[0]
+        if isinstance(outcome, BaseException):
+            raise outcome
+        if isinstance(outcome, float):
+            await asyncio.sleep(outcome)
+            return SimpleNamespace(text=answer_json())
+        return SimpleNamespace(text=outcome)
+
+    def sent_text(self) -> str:
+        """Everything that was sent to 'Gemini' (prompts + system instructions)."""
+        return "\n".join(
+            f"{call['contents']}\n{call['config'].system_instruction}" for call in self.calls
+        )
+
+
+async def no_sleep(_: float) -> None:
+    return None
+
+
+def make_settings(**overrides: Any) -> Settings:
+    return get_settings().model_copy(update=overrides)
+
+
+def make_gemini(
+    generate: FakeGenerate,
+    *,
+    rate_limiter: RateLimiter | None = None,
+    **settings_overrides: Any,
+) -> GeminiService:
+    return GeminiService(
+        make_settings(**settings_overrides),
+        generate=generate,
+        rate_limiter=rate_limiter or RateLimiter(1000, 100_000),
+        sleep=no_sleep,
+    )

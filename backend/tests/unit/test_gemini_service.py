@@ -1,0 +1,341 @@
+"""GeminiService with a fake transport: prompt building, parsing, errors, retries, privacy."""
+
+import logging
+from typing import Any
+
+import httpx
+import pytest
+from pydantic import SecretStr, ValidationError
+
+from app.schemas.ai_schemas import GeminiTutorAnswer, Language
+from app.services.ai import gemini_service as gemini_module
+from app.services.ai.errors import (
+    AIBadResponseError,
+    AINotConfiguredError,
+    AIQuotaExceededError,
+    AITimeoutError,
+    AIUnavailableError,
+)
+from app.services.ai.gemini_service import GeminiService, parse_answer
+from app.services.ai.privacy import REDACTED, scrub_pii
+from app.services.ai.prompts import SYSTEM_PROMPT, TutorPrompt, build_prompt
+from app.services.ai.rate_limiter import RateLimiter
+from tests.fakes import (
+    GOOD_ANSWER,
+    FakeGenerate,
+    answer_json,
+    api_error,
+    make_gemini,
+    make_settings,
+)
+
+ASK: dict[str, Any] = {
+    "question": "Prove that sin 2x = 2 sin x cos x",
+    "topic": "Double and Half Angle Identities",
+    "unit": "Unit 10: Trigonometric Identities of Sum and Difference of Angles",
+}
+
+
+# ------------------------------------------------------------------ prompt building
+
+
+def _prompt(**overrides: Any) -> str:
+    return build_prompt(TutorPrompt(**(ASK | overrides)))
+
+
+def test_prompt_contains_syllabus_context_and_question() -> None:
+    text = _prompt(reference_formulas=("Sine of a double angle: sin(2*x) = 2*sin(x)*cos(x)",))
+    assert "HSC-I (Class 11), Sindh Board, Pakistan" in text
+    assert "Unit: Unit 10: Trigonometric Identities" in text
+    assert "Topic: Double and Half Angle Identities" in text
+    assert "Sine of a double angle: sin(2*x) = 2*sin(x)*cos(x)" in text
+    assert ASK["question"] in text
+
+
+def test_prompt_has_required_instructions() -> None:
+    text = _prompt().lower()
+    for phrase in ("step-by-step", "formulas", "encouraging", "explanation, steps, formulas_used"):
+        assert phrase in text
+
+
+@pytest.mark.parametrize(
+    ("language", "phrase"),
+    [(Language.URDU_ENGLISH, "mix of simple Urdu"), (Language.ENGLISH, "simple, clear English")],
+)
+def test_prompt_language_instruction(language: Language, phrase: str) -> None:
+    assert phrase in _prompt(language=language)
+
+
+def test_prompt_without_reference_formulas_omits_section() -> None:
+    assert "Syllabus formulas" not in _prompt()
+
+
+def test_system_prompt_defines_json_contract_and_audience() -> None:
+    for phrase in (
+        "HSC-I (Class 11)",
+        "Sindh Board",
+        "step by step",
+        "encouraging",
+        '"explanation"',
+        '"steps"',
+        '"formulas_used"',
+        '"checks"',
+        "SymPy syntax",
+        "Never ask for or mention any personal information",
+    ):
+        assert phrase in SYSTEM_PROMPT
+
+
+def test_tutor_prompt_cannot_carry_personal_fields() -> None:
+    with pytest.raises(ValidationError):
+        TutorPrompt.model_validate(ASK | {"student_name": "Ali"})
+    assert not {"name", "email", "user_id", "student_name"} & set(TutorPrompt.model_fields)
+
+
+# ------------------------------------------------------------------ PII scrubbing
+
+
+@pytest.mark.parametrize(
+    "pii",
+    [
+        "ali.khan@gmail.com",
+        "03001234567",
+        "0300-1234567",
+        "+92 300 1234567",
+        "00923001234567",
+        "42101-1234567-1",
+        "4210112345671",
+    ],
+)
+def test_scrub_pii_removes_contact_details(pii: str) -> None:
+    scrubbed = scrub_pii(f"My contact is {pii}, solve x^2 = 4")
+    assert pii not in scrubbed
+    assert REDACTED in scrubbed
+    assert "solve x^2 = 4" in scrubbed
+
+
+@pytest.mark.parametrize(
+    "math", ["Find 3^12 = 531441", "Solve 2x + 3 = 7", "Evaluate 12345 * 6789", "Sum 1..100"]
+)
+def test_scrub_pii_leaves_math_alone(math: str) -> None:
+    assert scrub_pii(math) == math
+
+
+# ------------------------------------------------------------------ parse_answer
+
+
+def test_parse_valid_json() -> None:
+    result = parse_answer(answer_json())
+    assert result.structured is True
+    assert result.answer.steps == GOOD_ANSWER["steps"]
+    assert len(result.answer.checks) == 2
+
+
+def test_parse_json_in_code_fence() -> None:
+    result = parse_answer(f"```json\n{answer_json()}\n```")
+    assert result.structured is True
+
+
+def test_parse_json_embedded_in_prose() -> None:
+    result = parse_answer(f"Sure! Here it is:\n{answer_json()}\nGood luck!")
+    assert result.structured is True
+
+
+def test_parse_ignores_unknown_keys_and_defaults_missing_lists() -> None:
+    result = parse_answer('{"explanation": "Only text", "extra": 1}')
+    assert result.structured is True
+    assert (result.answer.steps, result.answer.formulas_used, result.answer.checks) == ([], [], [])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Plain text answer without JSON",
+        '{"explanation": ""}',  # empty explanation is invalid
+        '{"steps": ["a"]}',  # missing explanation
+        '{"explanation": "x", "steps": "not a list"}',
+        "{not json}",
+    ],
+)
+def test_invalid_json_falls_back_to_plain_text(text: str, caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING):
+        result = parse_answer(text)
+    assert result.structured is False
+    assert result.answer.explanation == text.strip()
+    assert result.answer.checks == []
+    assert "plain-text fallback" in caplog.text
+
+
+def test_fallback_is_truncated() -> None:
+    result = parse_answer("x" * 10_000)
+    assert len(result.answer.explanation) == gemini_module.MAX_FALLBACK_LENGTH
+
+
+# ------------------------------------------------------------------ ask_tutor happy path
+
+
+async def test_ask_tutor_sends_prompt_and_config() -> None:
+    fake = FakeGenerate(answer_json())
+    service = make_gemini(fake, gemini_model="gemini-2.5-flash")
+
+    result = await service.ask_tutor(**ASK, reference_formulas=["F: x = 1"])
+
+    assert result.structured is True
+    (call,) = fake.calls
+    assert call["model"] == "gemini-2.5-flash"
+    assert ASK["question"] in call["contents"]
+    assert "- F: x = 1" in call["contents"]
+    config = call["config"]
+    assert config.system_instruction == SYSTEM_PROMPT
+    assert config.response_mime_type == "application/json"
+    assert config.response_schema is GeminiTutorAnswer
+
+
+async def test_ask_tutor_scrubs_pii_from_question() -> None:
+    fake = FakeGenerate()
+    await make_gemini(fake).ask_tutor(
+        **(ASK | {"question": "I am reachable at sana@example.com or 0321-7654321. Solve x+1=2"})
+    )
+    sent = fake.sent_text()
+    assert "sana@example.com" not in sent
+    assert "0321-7654321" not in sent
+    assert "Solve x+1=2" in sent
+
+
+async def test_non_json_reply_is_not_an_error() -> None:
+    result = await make_gemini(FakeGenerate("Just some words")).ask_tutor(**ASK)
+    assert result.structured is False
+    assert result.answer.explanation == "Just some words"
+
+
+@pytest.mark.parametrize("text", [None, "", "   "])
+async def test_empty_reply_is_bad_response(text: str | None) -> None:
+    with pytest.raises(AIBadResponseError) as info:
+        await make_gemini(FakeGenerate(text)).ask_tutor(**ASK)  # type: ignore[arg-type]
+    assert info.value.status_code == 502
+
+
+# ------------------------------------------------------------------ errors and retries
+
+
+async def test_quota_429_maps_to_quota_error_without_retry(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake = FakeGenerate(api_error(429))
+    with caplog.at_level(logging.WARNING), pytest.raises(AIQuotaExceededError) as info:
+        await make_gemini(fake, gemini_max_retries=2).ask_tutor(**ASK)
+    assert len(fake.calls) == 1  # quota errors are not retried
+    assert info.value.status_code == 429
+    assert info.value.headers["Retry-After"] == "60"
+    assert "quota exhausted" in caplog.text
+
+
+@pytest.mark.parametrize("code", [401, 403])
+async def test_rejected_key_maps_to_not_configured(code: int) -> None:
+    with pytest.raises(AINotConfiguredError) as info:
+        await make_gemini(FakeGenerate(api_error(code))).ask_tutor(**ASK)
+    assert info.value.status_code == 503
+
+
+async def test_retired_model_404_maps_to_not_configured(caplog: pytest.LogCaptureFixture) -> None:
+    """Seen for real: Google retired gemini-2.5-flash for new keys (HTTP 404)."""
+    fake = FakeGenerate(api_error(404))
+    with caplog.at_level(logging.ERROR), pytest.raises(AINotConfiguredError):
+        await make_gemini(fake, gemini_max_retries=2).ask_tutor(**ASK)
+    assert len(fake.calls) == 1
+    assert "check GEMINI_MODEL" in caplog.text
+
+
+async def test_other_client_error_maps_to_unavailable() -> None:
+    fake = FakeGenerate(api_error(400))
+    with pytest.raises(AIUnavailableError):
+        await make_gemini(fake, gemini_max_retries=2).ask_tutor(**ASK)
+    assert len(fake.calls) == 1
+
+
+async def test_transient_server_error_is_retried_then_succeeds() -> None:
+    fake = FakeGenerate(api_error(503), api_error(500), answer_json())
+    result = await make_gemini(fake, gemini_max_retries=2).ask_tutor(**ASK)
+    assert result.structured is True
+    assert len(fake.calls) == 3
+
+
+async def test_server_error_after_all_retries_is_unavailable() -> None:
+    fake = FakeGenerate(api_error(503))
+    with pytest.raises(AIUnavailableError) as info:
+        await make_gemini(fake, gemini_max_retries=1).ask_tutor(**ASK)
+    assert len(fake.calls) == 2
+    assert info.value.status_code == 503
+
+
+@pytest.mark.parametrize("error", [httpx.ConnectError("down"), ConnectionResetError("reset")])
+async def test_network_errors_retry_then_unavailable(error: Exception) -> None:
+    fake = FakeGenerate(error)
+    with pytest.raises(AIUnavailableError):
+        await make_gemini(fake, gemini_max_retries=1).ask_tutor(**ASK)
+    assert len(fake.calls) == 2
+
+
+async def test_retry_backoff_is_exponential() -> None:
+    sleeps: list[float] = []
+
+    async def record(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    service = GeminiService(
+        make_settings(gemini_max_retries=2),
+        generate=FakeGenerate(api_error(503)),
+        rate_limiter=RateLimiter(100, 100),
+        sleep=record,
+    )
+    with pytest.raises(AIUnavailableError):
+        await service.ask_tutor(**ASK)
+    assert sleeps == [0.5, 1.0]
+
+
+async def test_timeout_maps_to_ai_timeout() -> None:
+    fake = FakeGenerate(5.0)  # hangs for 5 s
+    with pytest.raises(AITimeoutError) as info:
+        await make_gemini(fake, gemini_timeout_seconds=0.05).ask_tutor(**ASK)
+    assert info.value.status_code == 504
+
+
+async def test_local_rate_limit_blocks_before_calling_gemini() -> None:
+    fake = FakeGenerate()
+    service = make_gemini(fake, rate_limiter=RateLimiter(per_minute=1, per_day=100))
+    await service.ask_tutor(**ASK)
+    with pytest.raises(AIQuotaExceededError):
+        await service.ask_tutor(**ASK)
+    assert len(fake.calls) == 1
+
+
+# ------------------------------------------------------------------ client configuration
+
+
+@pytest.mark.parametrize("key", [None, "", "   "])
+async def test_missing_api_key_is_not_configured(key: str | None) -> None:
+    secret = None if key is None else SecretStr(key)  # model_copy does not validate
+    service = GeminiService(make_settings(gemini_api_key=secret))
+    with pytest.raises(AINotConfiguredError):
+        await service.ask_tutor(**ASK)
+
+
+def test_real_client_is_built_lazily_from_settings() -> None:
+    """Constructing the SDK client makes no network call."""
+    service = GeminiService(make_settings(gemini_api_key=SecretStr("test-key-not-real")))
+    generate = service._get_generate()
+    assert callable(generate)
+    assert service._get_generate() is generate  # cached
+
+
+def test_get_gemini_service_is_singleton() -> None:
+    gemini_module.get_gemini_service.cache_clear()
+    try:
+        assert gemini_module.get_gemini_service() is gemini_module.get_gemini_service()
+    finally:
+        gemini_module.get_gemini_service.cache_clear()
+
+
+def test_describe_answer_has_no_content() -> None:
+    summary = gemini_module.describe_answer(parse_answer(answer_json()))
+    assert summary == '{"structured": true, "steps": 3, "checks": 2}'
