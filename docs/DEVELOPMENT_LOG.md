@@ -167,4 +167,84 @@ The integration fixtures refuse to run against any database whose name doesn't c
 - **Seed deletions:** the seed never deletes rows that were removed from the JSON, because
   student progress may point to them.
 
-**Phase 1 status: COMPLETE. Waiting for approval before starting Phase 2.**
+**Phase 1 status: COMPLETE.** Committed as `b6fa48d`, together with the new `CLAUDE.md`.
+
+---
+
+## Phase 2: Authentication & Core API (2026-11-11)
+
+### Authentication
+- **Library:** PyJWT 2.15.1, signing with HS256. This is the one new dependency; it is free and
+  open source.
+- **Algorithm pinned:** the server only accepts HS256 and ignores the algorithm named in the
+  token header. Unsigned `alg: none` tokens are rejected.
+- **Token pair:** an access token (60 min) and a refresh token (7 days). Claims are `sub`,
+  `type`, `iat` and `exp`.
+- **`type` claim:** refresh tokens are rejected on protected routes, and access tokens are
+  rejected by `/refresh`.
+- **`SECRET_KEY`:** a random 64-character value, stored only in `backend/.env`. Settings refuse
+  a key shorter than 32 characters.
+- **Login timing:** `UserRepository.authenticate` checks a dummy hash when the email is
+  unknown, so response time doesn't reveal which emails are registered.
+- **Inactive users:** they can't log in or refresh, and their existing access tokens stop
+  working.
+
+### Endpoints (`app/api/`)
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | /api/v1/auth/register | public | 201 returns `UserRead`; 409 if the email is taken (including a simultaneous registration) |
+| POST | /api/v1/auth/login | public | JSON `{email, password}` returns a `TokenPair`; 401 uses one generic message |
+| POST | /api/v1/auth/refresh | public | `{refresh_token}` returns a new `TokenPair` |
+| GET | /api/v1/auth/me | Bearer | the current user |
+| GET | /api/v1/units/ | Bearer | 12 units in syllabus order |
+| GET | /api/v1/units/{unit_id} | Bearer | 404 if missing |
+| GET | /api/v1/units/{unit_id}/topics | Bearer | 404 if the unit is missing |
+| GET | /api/v1/topics/{topic_id} | Bearer | |
+| GET | /api/v1/topics/{topic_id}/formulas | Bearer | ordered by id |
+| GET | /api/v1/topics/{topic_id}/questions | Bearer | ordered by id |
+| GET | /health | public | |
+
+- **ID validation:** path ids must be between 1 and 2³¹−1. Out-of-range ids get a 422 instead
+  of reaching the database and causing a 500.
+- **Error format:** every non-2xx response uses
+  `{"error": {"code", "message", "details"}}`.
+  - Codes: `not_found`, `validation_error`, `not_authenticated` (with a
+    `WWW-Authenticate: Bearer` header), `conflict`, `method_not_allowed`, `internal_error`.
+  - A 422 response lists `loc`, `msg` and `type` for each problem, but never echoes the rejected
+    input, so passwords don't leak back.
+  - A 500 response is generic; the actual exception goes to the server log.
+- **CORS:** origins come from `CORS_ORIGINS` in `.env`. Credentials are off because tokens are
+  sent in a header, not cookies. The native Android app doesn't send an `Origin` header, so CORS
+  only matters for web clients.
+- **Swagger:** served at `/docs`. The **Authorize** button takes the `access_token` from login.
+- **App factory:** the app is built by `app.main.create_app()`, so each test gets a fresh,
+  isolated app.
+
+### Tests: 324 passing (+85)
+| Suite | Tests | New coverage |
+|---|---|---|
+| unit | 204 | Token round trips, expiry, wrong type, wrong key, `alg: none`, malformed tokens, missing claims, secret-key length, CORS parsing |
+| integration | 49 | Unchanged. Shared DB fixtures moved to `tests/conftest.py`. |
+| api | 71 | Every endpoint: success cases, 401 (missing, garbage, expired, wrong-type, deleted-user and inactive-user tokens), 404, 422 (bad payloads, bad ids, no password echo), 409 (including a simulated race), 405, 500 (no leak, logged), CORS allow and deny, `/docs`, and an exact OpenAPI route list |
+
+### Quality gates
+| # | Gate | Result |
+|---|---|---|
+| 1 | ruff format --check | PASS |
+| 2 | ruff check | PASS (two inline `noqa: S105` on non-secret strings: `"bearer"` and an error message) |
+| 3 | mypy app (strict) | PASS (47 files) |
+| 4 | pytest -v | PASS (324/324) |
+| 5 | coverage | PASS (100%) |
+| 6 | flutter analyze | PASS |
+| 7 | flutter test | PASS |
+
+### Decisions and follow-ups
+- **Protected content:** all content routes require login, since the app is login-gated.
+- **Login body:** login takes JSON rather than an OAuth2 form, because that's simpler for
+  Flutter. Swagger uses HTTPBearer, so you paste the token in.
+- **Stateless tokens:** there is no logout or revocation list yet, and no rate limiting on
+  login. Both should be added before production.
+- **No schema change:** the database is still at revision `f7794967963c`. Topic → formulas and
+  questions now return in id order, which is ORM-only and needs no migration.
+
+**Phase 2 status: COMPLETE. Waiting for approval before starting Phase 3.**

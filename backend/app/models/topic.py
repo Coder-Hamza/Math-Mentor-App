@@ -26,10 +26,16 @@ class Topic(Base):
 
     unit: Mapped[Unit] = relationship(back_populates="topics")
     formulas: Mapped[list[Formula]] = relationship(
-        back_populates="topic", cascade="all, delete-orphan", passive_deletes=True
+        back_populates="topic",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Formula.id",
     )
     practice_questions: Mapped[list[PracticeQuestion]] = relationship(
-        back_populates="topic", cascade="all, delete-orphan", passive_deletes=True
+        back_populates="topic",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PracticeQuestion.id",
     )
     progress: Mapped[list[StudentProgress]] = relationship(
         back_populates="topic", cascade="all, delete-orphan", passive_deletes=True

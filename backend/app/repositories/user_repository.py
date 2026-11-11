@@ -1,3 +1,5 @@
+from functools import cache
+
 from sqlalchemy import select
 
 from app.core.security import hash_password, verify_password
@@ -26,8 +28,20 @@ class UserRepository(BaseRepository[User, UserCreate, UserUpdate]):
         return super().update(obj, UserUpdate.model_validate(changes))
 
     def authenticate(self, email: str, password: str) -> User | None:
-        """Return the active user for valid credentials, else None."""
+        """Return the active user for valid credentials, else None.
+
+        A hash is always verified (a dummy one for unknown emails) so response time does not
+        reveal which emails are registered.
+        """
         user = self.get_by_email(email)
-        if user is None or not user.is_active:
+        password_ok = verify_password(
+            password, user.password_hash if user is not None else _dummy_hash()
+        )
+        if user is None or not user.is_active or not password_ok:
             return None
-        return user if verify_password(password, user.password_hash) else None
+        return user
+
+
+@cache
+def _dummy_hash() -> str:
+    return hash_password("timing-equalizer-not-a-real-password")

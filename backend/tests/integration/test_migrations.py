@@ -6,7 +6,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect
 
 from app.database.base import Base
-from tests.integration.conftest import alembic_config
+from tests.conftest import alembic_config
 
 pytestmark = pytest.mark.integration
 

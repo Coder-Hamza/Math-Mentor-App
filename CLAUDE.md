@@ -107,10 +107,24 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
 - Password hashing: scrypt (built-in Python)
 - All 7 gates: PASS
 
-## Current Phase
-### Phase 2 — Authentication & Core API ⏳ IN PROGRESS
+### Phase 2 — Authentication & Core API ✅ COMPLETE (awaiting approval for Phase 3)
+- JWT (PyJWT 2.15, HS256): access 60 min + refresh 7 days, `type` claim
+  stops refresh tokens being used as access tokens
+- Routes: register, login, refresh, me + 6 content routes (all content
+  routes require a Bearer access token); app factory `create_app()`
+- Error envelope on every non-2xx: {"error": {code, message, details}}
+  (422 details never echo input; 500 is generic + logged)
+- CORS: origins from CORS_ORIGINS in .env (localhost, 10.0.2.2)
+- Swagger at /docs with Authorize (HTTPBearer)
+- SECRET_KEY: real random value in backend/.env only (min 32 chars enforced)
+- Tests: 324/324 pass (unit 204, integration 49, api 71), 100% coverage
+- All 7 gates: PASS
+- No new migration (still f7794967963c)
 
-## Phase 2 Tasks
+## Current Phase
+### None in progress — waiting for user approval to start Phase 3
+
+## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)
 2. Password hashing already done (scrypt) — wire it up
 3. API routes in app/api/:
@@ -149,3 +163,8 @@ Phase 7: Polish, offline support, final testing
   Phase 0 security review
 - Ruff security rules relaxed in test files only 
   (not in app code)
+- Shared DB fixtures live in backend/tests/conftest.py; tests refuse to
+  run against a DB whose name lacks "test"
+- Tokens are stateless: no logout/revocation yet; no login rate limiting
+  yet — consider before production
+- docs/TESTING.md and docs/PRD.md are planned but not yet written
