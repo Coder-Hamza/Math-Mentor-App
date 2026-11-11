@@ -71,11 +71,9 @@ pytest 9.2.0, httpx 0.28.1, ruff 0.17.4, mypy 2.4.1.
   `flutter doctor --android-licenses`. This is needed for `flutter run` and APK builds.
 - Add `C:\Users\Cloud Primero\flutter\bin` and `C:\Program Files\PostgreSQL\18\bin` to PATH
   for new shells.
-- DB login as `mathmentor` is not yet verified.
-  - An earlier login check with the first password failed.
-  - The password in `.env` has since changed and hasn't been tested.
-  - The database was created as `mathmentor_db`, but `.env` uses `mathmentor`. One of them
-    has to change so the names match.
+- ~~DB login unverified~~ Resolved 2026-11-11: the `mathmentor` role was created, and it owns
+  `mathmentor_db` (dev) and `mathmentor_test` (tests). The app connects to both through
+  SQLAlchemy/psycopg using `backend/.env`.
 - Replace the default counter app and `widget_test.dart` with the MathMentor shell.
 
 **Phase 0 status: COMPLETE.** All 7 gates pass.
