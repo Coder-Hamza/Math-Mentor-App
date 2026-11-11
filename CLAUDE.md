@@ -143,8 +143,28 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   cooldown. Tests 544/544 (unit 386, integration 62, api 96), 100% coverage
 - All 7 gates: PASS
 
+### Phase 4 — Flutter UI ✅ COMPLETE (awaiting approval for Phase 5)
+- Screens: Splash, Login, Register, Home (12 units), Unit detail (topics +
+  difficulty badges), Topic detail (formulas, Ask AI, recent questions),
+  Tutor (chat, loading, markdown, numbered steps, formula chips,
+  verification badge, yellow warning, errors with retry, language menu)
+- State: provider (AuthProvider, UnitsProvider); services: ApiService
+  (Bearer JWT, silent refresh on 401 then logout), AuthService,
+  StorageService (tokens + per-topic recent questions, wiped on logout)
+- API URL: lib/core/constants.dart; default http://10.0.2.2:8000; override
+  with --dart-define=API_BASE_URL=http://<ip>:8000 (no code change)
+- Packages: http, provider, shared_preferences, flutter_markdown_plus
+  (flutter_markdown is discontinued), loading_animation_widget.
+  google_fonts NOT used: its objective_c native hook breaks because the
+  Flutter SDK path has a space; Poppins is bundled via pubspec `fonts:`.
+- minSdk = Flutter default 24 (Flutter 3.47 cannot build below API 23)
+- Cleartext HTTP allowed in debug/profile manifests only
+- Tests: Flutter 87 (97.5% line coverage) — mock HTTP (FakeBackend in
+  test/helpers.dart), no real API calls; backend unchanged 544
+- All 7 gates: PASS
+
 ## Current Phase
-### None in progress — waiting for user approval to start Phase 4
+### None in progress — waiting for user approval to start Phase 5
 
 ## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)
@@ -208,3 +228,12 @@ Phase 7: Polish, offline support, final testing
 - SymPy has no type stubs: mypy override ignore_missing_imports for sympy
 - Never use the Edit/Write tools to write "\uXXXX" escapes — they get
   converted to literal characters (RUF001). Use a script with chr(92).
+- !! Flutter SDK lives at "C:\Users\Cloud Primero\flutter" (path has a
+  SPACE). Packages with native build hooks (e.g. objective_c) fail to
+  build. Recommended: move the SDK to C:\src\flutter. Until then, avoid
+  adding such packages. Flutter is not on PATH in tool shells: prepend the
+  User+Machine PATH from the registry before calling flutter.
+- Android SDK still not installed: the app has never run on a device;
+  flutter analyze/test only. Install Android Studio before Phase 5 testing.
+- PowerShell Set-Content/Get-Content mangle UTF-8 (em dash -> mojibake);
+  prefer Edit/Write or Python for text edits.

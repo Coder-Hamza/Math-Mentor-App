@@ -404,3 +404,91 @@ Gemini is faked in every test (`tests/fakes.py`).
 
 **Results:** 23 new tests, **544 passing** (unit 386, integration 62, api 96), **100%
 coverage, and all 7 gates pass.**
+
+---
+
+## Phase 4: Flutter Android app (2026-11-11)
+
+### Screens
+| Screen | What it does |
+|---|---|
+| Splash | Logo and spinner. Checks the stored JWT with `/auth/me`: a valid token goes to Home, no token or an expired one goes to Login, and offline goes to Home, which offers retry. |
+| Login | Email and password with validation. The button disables and shows a spinner while busy. Errors are bilingual. Shows "Session khatam ho gaya" after a forced logout. Links to Register. |
+| Register | Name, email and password (validated with the backend's rules). Logs in automatically and goes to Home. Handles "email already registered". |
+| Home | "MathMentor AI" app bar with a logout button (confirms first), a greeting, 12 unit cards (number, title, page) and pull to refresh. |
+| Unit detail | Unit header and topic cards with a difficulty badge (easy green, medium orange, hard red). Pull to refresh. |
+| Topic detail | Header, a prominent **Ask AI Tutor** button, expandable formula cards (SymPy syntax shown in textbook form, e.g. `I**2` becomes `i^2`), and recent questions. |
+| Tutor | A topic context bar, a chat list, and the "Apna sawal likhein..." input (500-character limit). Shows a loading animation while Gemini answers, then a response card (see below). Errors are friendly, with a retry button. A language menu switches between Urdu + English and English. |
+
+The tutor's response card shows:
+- A **verification badge**: SymPy verified ✓, Possible mistake found, or Not verified.
+- A **yellow warning box** when the backend sends a warning.
+- The **explanation**, rendered as Markdown.
+- **Numbered steps**, with Gemini's own "Step N:" prefix removed.
+- **Formula chips** for the formulas used.
+
+### Architecture
+- **Services:**
+  - `ApiService` sends a Bearer JWT with every request. On a 401 it tries one silent refresh
+    (shared by requests that fail at the same time), then retries the request. If the refresh
+    fails, it clears the tokens and sends the student to Login.
+  - Every failure becomes an `ApiException` with an Urdu/English message.
+  - Responses are always decoded as UTF-8, which Urdu text and math symbols need.
+  - `AuthService` handles login, register and logout. `StorageService` holds the tokens and
+    each topic's recent questions, and wipes both on logout.
+- **Providers:** `AuthProvider` (session state) and `UnitsProvider` (units, topics and formulas
+  cached in memory; stale data is kept when a refresh fails).
+- **Navigation:** the app root listens to `AuthProvider`. Logout or an unrecoverable 401
+  clears the cache and resets to Login.
+- **Error messages:**
+  - No internet: "Internet connection check karein."
+  - Server down (connection refused, 502/503 without an AI code): "Server se connection nahi
+    hua..."
+  - AI unavailable (503/502 with an `ai_*` code): "AI tutor abhi available nahi, thodi der baad
+    try karein."
+  - Timeout (client side, or 504): "Request timeout, dobara try karein."
+  - Quota (429): "AI tutor abhi bohat busy hai..."
+- **API URL:** `http://10.0.2.2:8000` by default. Override it at run time with
+  `--dart-define=API_BASE_URL=...`, with no code change.
+
+### Decisions and deviations from the spec
+| Spec | Done | Why |
+|---|---|---|
+| `flutter_markdown ^0.6.0` | `flutter_markdown_plus ^1.0.12` | `flutter_markdown` is discontinued; pub.dev names this as its replacement (same API) |
+| `google_fonts ^6.0.0` | Poppins bundled through `fonts:` in `pubspec.yaml` (OFL licence) | `google_fonts` pulls in `objective_c`, whose native build hook fails because the Flutter SDK path contains a space. Bundling also works offline and gives true weights. |
+| Package versions | `http ^1.6.0`, `provider ^6.1.5`, `shared_preferences ^2.5.6`, `loading_animation_widget ^1.3.0` | Current releases |
+| Min Android API 21 | API 24 (Flutter's default) | Flutter 3.47 refuses to build below API 23 |
+| Splash: "token valid" | Checked with `/auth/me` | A stored token alone doesn't prove the session is still valid |
+| On 401, go to login | Silent refresh first | The access token lasts 60 minutes; without a refresh, students would be logged out every hour |
+| Recent questions | Stored on the phone, per topic, newest first, max 5 | There is no backend history yet. They are cleared on logout. |
+| Plain HTTP | Allowed in debug and profile builds only | Android blocks cleartext HTTP by default; release builds need HTTPS |
+
+Two real bugs were caught by the widget tests and fixed: the splash spinner overflowed its
+box, and a test helper's variable shadowed a constant.
+
+### Tests
+- **Flutter:** 87 passing, with **97.5% line coverage**. Everything runs against a mocked HTTP
+  client (`FakeBackend` in `test/helpers.dart`); no real API calls.
+  - `ApiService` (24): auth headers, refresh, error mapping, network, timeout, UTF-8.
+  - Storage, models and validators (18).
+  - Splash, login and register, session handling (19).
+  - Home, unit and topic screens (11).
+  - Tutor screen (15).
+- **Backend:** unchanged, 544 passing with 100% coverage.
+
+### Quality gates
+| # | Gate | Result |
+|---|---|---|
+| 1 | ruff format --check | PASS |
+| 2 | ruff check | PASS |
+| 3 | mypy app | PASS |
+| 4 | pytest -v | PASS (544) |
+| 5 | coverage | PASS (100%) |
+| 6 | flutter analyze | PASS (strict casts, extra lints) |
+| 7 | flutter test | PASS (87) |
+
+### Not verified yet
+The Android SDK is not installed, so the app has **not run on an emulator or phone**. It has
+only been analyzed and widget-tested. See `README.md` for how to run it.
+
+**Phase 4 status: COMPLETE. Waiting for approval before starting Phase 5.**
