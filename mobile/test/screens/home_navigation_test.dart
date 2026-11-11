@@ -36,6 +36,7 @@ void main() {
     );
     expect(nav.items.map((BottomNavigationBarItem i) => i.label), <String>[
       'Units',
+      'Solver',
       'Practice',
       'Progress',
     ]);

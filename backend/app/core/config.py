@@ -53,9 +53,16 @@ class Settings(BaseSettings):
     tutor_timeout_seconds: float = Field(default=30, gt=0)
     sympy_timeout_seconds: float = Field(default=5, gt=0)
 
+    # Hard cap for POST /solver/solve: full textbook solutions take Gemini longer.
+    solver_timeout_seconds: float = Field(default=45, gt=0)
+
     @property
     def gemini_budget_seconds(self) -> float:
         return max(self.tutor_timeout_seconds - self.sympy_timeout_seconds, 1.0)
+
+    @property
+    def solver_gemini_budget_seconds(self) -> float:
+        return max(self.solver_timeout_seconds - self.sympy_timeout_seconds, 1.0)
 
     @field_validator("log_level", mode="before")
     @classmethod

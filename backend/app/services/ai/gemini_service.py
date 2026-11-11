@@ -25,10 +25,11 @@ import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings, get_settings
 from app.schemas.ai_schemas import GeminiTutorAnswer, Language
+from app.schemas.solver_schemas import GeminiSolverAnswer
 from app.services.ai.errors import (
     AIBadResponseError,
     AIModelUnavailableError,
@@ -41,6 +42,11 @@ from app.services.ai.errors import (
 from app.services.ai.privacy import scrub_pii
 from app.services.ai.prompts import DEFAULT_STUDENT_LEVEL, SYSTEM_PROMPT, TutorPrompt, build_prompt
 from app.services.ai.rate_limiter import RateLimiter
+from app.services.ai.solver_prompts import (
+    SOLVER_SYSTEM_PROMPT,
+    SolverPrompt,
+    build_solver_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +61,17 @@ class GeminiResult:
     answer: GeminiTutorAnswer
     structured: bool  # False => Gemini ignored the JSON format; ``answer`` wraps raw text
     model: str = ""  # which model actually answered (primary or fallback)
+
+
+@dataclass(frozen=True)
+class SolverGeminiResult:
+    answer: GeminiSolverAnswer | None  # None => not valid solver JSON; see ``raw_text``
+    raw_text: str
+    model: str = ""
+
+    @property
+    def structured(self) -> bool:
+        return self.answer is not None
 
 
 class _ModelNotFoundError(Exception):
@@ -86,12 +103,7 @@ def _retry_after_seconds(exc: genai_errors.APIError) -> int:
 def parse_answer(text: str) -> GeminiResult:
     """Parse Gemini's JSON. Never raises: unusable JSON degrades to a plain-text answer."""
     stripped = text.strip()
-    fenced = _CODE_FENCE.match(stripped)
-    candidates = [fenced.group(1) if fenced else stripped]
-    start, end = stripped.find("{"), stripped.rfind("}")
-    if 0 <= start < end:
-        candidates.append(stripped[start : end + 1])
-    for candidate in candidates:
+    for candidate in _json_candidates(stripped):
         try:
             return GeminiResult(GeminiTutorAnswer.model_validate_json(candidate), structured=True)
         except ValidationError:
@@ -99,6 +111,27 @@ def parse_answer(text: str) -> GeminiResult:
     logger.warning("Gemini response was not valid tutor JSON; using plain-text fallback")
     explanation = stripped[:MAX_FALLBACK_LENGTH]
     return GeminiResult(GeminiTutorAnswer(explanation=explanation), structured=False)
+
+
+def _json_candidates(text: str) -> list[str]:
+    stripped = text.strip()
+    fenced = _CODE_FENCE.match(stripped)
+    candidates = [fenced.group(1) if fenced else stripped]
+    start, end = stripped.find("{"), stripped.rfind("}")
+    if 0 <= start < end:
+        candidates.append(stripped[start : end + 1])
+    return candidates
+
+
+def parse_solver_answer(text: str) -> SolverGeminiResult:
+    """Parse the solver JSON. Never raises: unusable JSON keeps the raw text."""
+    for candidate in _json_candidates(text):
+        try:
+            return SolverGeminiResult(GeminiSolverAnswer.model_validate_json(candidate), text)
+        except ValidationError:
+            continue
+    logger.warning("Gemini response was not valid solver JSON; using plain-text fallback")
+    return SolverGeminiResult(None, text.strip()[:MAX_FALLBACK_LENGTH])
 
 
 def _map_api_error(exc: genai_errors.APIError) -> AIServiceError:
@@ -158,11 +191,15 @@ class GeminiService:
             self._generate = client.aio.models.generate_content
         return self._generate
 
-    def _config(self) -> types.GenerateContentConfig:
+    def _config(
+        self,
+        system_instruction: str = SYSTEM_PROMPT,
+        schema: type[BaseModel] = GeminiTutorAnswer,
+    ) -> types.GenerateContentConfig:
         return types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=system_instruction,
             response_mime_type="application/json",
-            response_schema=GeminiTutorAnswer,
+            response_schema=schema,
             temperature=0.3,
         )
 
@@ -188,16 +225,51 @@ class GeminiService:
         result = parse_answer(text)
         return GeminiResult(result.answer, result.structured, model)
 
-    async def _call(self, contents: str) -> tuple[str, str]:
+    async def solve_question(
+        self,
+        *,
+        chapter: str,
+        question: str,
+        book_answer: str | None = None,
+        grade_level: str = "HSC-I",
+        language: Language = Language.URDU_ENGLISH,
+    ) -> SolverGeminiResult:
+        """Full textbook-pattern solution. Each attempt may take up to the solver's Gemini
+        budget (complex questions need longer than tutor answers)."""
+        prompt = SolverPrompt(
+            chapter=scrub_pii(chapter),
+            question=scrub_pii(question),
+            book_answer=scrub_pii(book_answer) if book_answer else None,
+            grade_level=grade_level,
+            language=language,
+        )
+        model, text = await self._call(
+            build_solver_prompt(prompt),
+            config=self._config(SOLVER_SYSTEM_PROMPT, GeminiSolverAnswer),
+            attempt_seconds=self._settings.solver_gemini_budget_seconds,
+        )
+        result = parse_solver_answer(text)
+        return SolverGeminiResult(result.answer, result.raw_text, model)
+
+    async def _call(
+        self,
+        contents: str,
+        *,
+        config: types.GenerateContentConfig | None = None,
+        attempt_seconds: float | None = None,
+    ) -> tuple[str, str]:
         """Try each model in order. 404 (model unavailable) or 429 (model quota used up)
         moves on to the next model; every other error is final."""
         generate = self._get_generate()
-        config = self._config()
+        config = config or self._config()
+        attempt_seconds = attempt_seconds or self._settings.gemini_timeout_seconds
         candidates = self._candidates()
         quota_waits: list[int] = []
         for model in candidates:
             try:
-                return model, await self._call_model(generate, model, contents, config)
+                return model, await self._call_model(
+                    generate, model, contents, config, attempt_seconds
+                )
             except _ModelNotFoundError:
                 self._unavailable_models.add(model)
             except _ModelQuotaError as exc:
@@ -230,13 +302,18 @@ class GeminiService:
         return ready
 
     async def _call_model(
-        self, generate: GenerateFn, model: str, contents: str, config: types.GenerateContentConfig
+        self,
+        generate: GenerateFn,
+        model: str,
+        contents: str,
+        config: types.GenerateContentConfig,
+        attempt_seconds: float,
     ) -> str:
         attempts = self._settings.gemini_max_retries + 1
         for attempt in range(1, attempts + 1):
             self._limiter.acquire()
             try:
-                async with asyncio.timeout(self._settings.gemini_timeout_seconds):
+                async with asyncio.timeout(attempt_seconds):
                     response = await generate(model=model, contents=contents, config=config)
             except TimeoutError:
                 logger.warning("Gemini call timed out (attempt %d/%d)", attempt, attempts)

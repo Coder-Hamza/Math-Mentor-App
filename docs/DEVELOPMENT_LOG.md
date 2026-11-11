@@ -812,3 +812,111 @@ feature still works.
 ### Quality gates
 All 7 PASS: ruff format, ruff check, mypy, pytest (842), coverage (100%),
 flutter analyze, and flutter test (168).
+
+## Feature: Smart Question Solver (2026-11-12)
+
+A student who doesn't understand a question types:
+- the chapter name,
+- the question,
+- the book's answer (optional).
+
+The AI then solves it step by step in the Pakistani textbook pattern and explains
+everything in Urdu/English.
+
+### Backend
+- **Endpoint:** `POST /api/v1/solver/solve`. It needs JWT and has a 45 s cap.
+- **Request:** chapter (max 200 characters), question (max 1000), book answer
+  (optional, max 500; an empty string counts as none), grade level, and language.
+- **Response:** the full solution text plus structured `steps[]` and everything else
+  the spec lists.
+- **How Gemini's answer becomes the solution:**
+  - Gemini returns structured JSON (`GeminiSolverAnswer`).
+  - The server renders the §7.6 text pattern itself in `render_solution`: Sawal,
+    Diya hua, Poochha gaya, Hal, Qadam n, Jawab, Exam Tip.
+  - So the pattern is always exact, even if the model's own formatting drifts.
+- **The prompt:**
+  - It contains every instruction from the spec, including "expert Pakistani math
+    teacher", "koi step skip mat karo", textbook notation and the mandatory exam tip.
+  - With a book answer it adds "Book ka jawab hai: X. Isi jawab tak pohoncho."
+  - The prompt model has no personal fields, and every free-text field is scrubbed of
+    contact details.
+- **Verification:**
+  - `sympy_verified` comes from the claims Gemini lists, such as the answer
+    substituted back into the equation. It uses the same rules as the tutor.
+  - `answer_verified` means "a book answer was given, and our answer is equivalent
+    to it". It reuses the practice grader, so these count as matches:
+    - `2, 3` vs `x = 3, x = 2`,
+    - `5 + 2i` vs `2i + 5`,
+    - `1/√2` vs `sqrt(2)/2`,
+    - `0.5` vs `1/2`.
+    Non-mathematical answers fall back to close text similarity.
+- **Warnings (Urdu/English):**
+  - The answer doesn't match the book (book misprints happen; confirm with the
+    teacher).
+  - SymPy suspects a mistake.
+  - The checks took too long.
+  - The answer came back unstructured. The raw text is still shown, nothing is lost.
+- **`GeminiService` change:** `_call` / `_call_model` now take the system prompt,
+  response schema and per-attempt time. The solver gets 40 s; the tutor keeps exactly
+  its old 25 s and prompt.
+
+### Flutter
+- **Navigation:** Solver is the second bottom-nav tab (Units, Solver, Practice,
+  Progress). It is fixed type, so all four labels show.
+- **Screen:** a glass form, then a glass shimmer while solving (20–40 s), then the
+  result:
+  - A header with the chapter badge, difficulty, "Tareeqa: method" and the question.
+  - Expandable Qadam cards: "Pehla Qadam", "Doosra Qadam" and so on, with the step
+    title as subtitle. The first is open. Formula and Calculation appear in
+    monospace boxes.
+  - Formula chips and concept chips.
+  - An answer card:
+    - "Jawab: …".
+    - When a book answer was given: a green "✅ Book ke jawab se match karta hai!",
+      or a red "❌ Book ke jawab se match nahi" with the book's answer and a note.
+    - The SymPy pill.
+  - The amber 💡 Exam Tip.
+  - "Dobara Solve Karo", which keeps the chapter and clears the rest.
+  - "AI Tutor se poochein", which works like this:
+    - It matches the chapter name to a syllabus unit. It compares words, and a
+      5-letter prefix is enough, so "trigonometry" finds "Trigonometric".
+    - If nothing matches, the student picks the unit from a list.
+    - It then opens the tutor with the question pre-filled, cut to the tutor's
+      500-character limit.
+- **A fix found by the screenshot check:** the button showed both a 🔍 emoji and the
+  search icon. Only the icon is kept now.
+
+### Tests
+- **Backend:** 901 passing (+59), 100% coverage.
+  - `tests/unit/test_solver.py` (42 tests):
+    - schema limits,
+    - prompt content with and without a book answer,
+    - the textbook pattern and its order,
+    - JSON parsing,
+    - answer equivalence (6 matching and 3 non-matching cases),
+    - the service: no book answer, matching, mismatch, wrong maths, unstructured
+      replies, the Gemini timeout, the check timeout, quota errors, the solver
+      config, PII scrubbing.
+  - `tests/api/test_solver.py` (17 tests): success, answer match and mismatch, empty
+    book answer, 401, 422 (8 cases, input never echoed), 504, 429 with
+    `Retry-After`, 503, and privacy.
+- **Flutter:** 188 passing (+20), 99.0% line coverage.
+  - `test/screens/solver_screen_test.dart` covers:
+    - form validation and limits,
+    - the loading state,
+    - the result with and without a book answer, matching and not matching,
+    - step expansion,
+    - the unstructured fallback,
+    - timeout and retry,
+    - Dobara Solve,
+    - Ask Tutor: unit matched, picker, picker cancelled, no topics, long question,
+    - the tab position,
+    - the helpers.
+
+### Quality gates
+All 7 PASS: ruff format, ruff check, mypy, pytest (901), coverage (100%),
+flutter analyze, and flutter test (188).
+
+### Not verified
+- No live Gemini call has been made yet; Gemini is faked in every test, as always.
+- The first real solve should be checked on the phone, with a book answer and without.

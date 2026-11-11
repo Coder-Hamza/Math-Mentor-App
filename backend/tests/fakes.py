@@ -90,3 +90,46 @@ def make_gemini(
         rate_limiter=rate_limiter or RateLimiter(1000, 100_000),
         sleep=no_sleep,
     )
+
+
+# ------------------------------------------------------------------ solver
+
+GOOD_SOLUTION: dict[str, Any] = {
+    "restated_question": "Quadratic equation x^2 - 5x + 6 = 0 ko hal karein.",
+    "given": ["x^2 - 5x + 6 = 0"],
+    "to_find": ["x ki values"],
+    "steps": [
+        {
+            "title": "Factors talash karein",
+            "explanation": "Hamein do numbers chahiye jinka product 6 aur sum -5 ho: -2 aur -3.",
+            "formula_used": None,
+            "calculation": "x^2 - 2x - 3x + 6 = 0",
+        },
+        {
+            "title": "Factorise karein",
+            "explanation": "Common factors bahar nikalein.",
+            "formula_used": "Factorisation: ab = 0 => a = 0 or b = 0",
+            "calculation": "(x - 2)(x - 3) = 0",
+        },
+        {
+            "title": "Har factor ko zero rakhein",
+            "explanation": "x - 2 = 0 ya x - 3 = 0.",
+            "formula_used": None,
+            "calculation": "x = 2, x = 3",
+        },
+    ],
+    "method_used": "Factorisation Method",
+    "formulas_applied": ["Zero product property: ab = 0 => a = 0 or b = 0"],
+    "key_concepts": ["Quadratic equation", "Factorisation"],
+    "final_answer": "x = 2, x = 3",
+    "difficulty_level": "easy",
+    "exam_tip": "Jawab ko wapas equation mein rakh kar zaroor check karein.",
+    "checks": [
+        {"lhs": "2**2 - 5*2 + 6", "rhs": "0"},
+        {"lhs": "3**2 - 5*3 + 6", "rhs": "0"},
+    ],
+}
+
+
+def solution_json(**overrides: Any) -> str:
+    return json.dumps(GOOD_SOLUTION | overrides)

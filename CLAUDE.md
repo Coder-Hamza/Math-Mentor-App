@@ -59,11 +59,11 @@ math-mentor-ai/
 │   │   ├── repositories/# CRUD layer
 │   │   └── services/    # AI, math, tutor logic
 │   ├── tests/
-│   │   ├── unit/        # 627 tests
+│   │   ├── unit/        # 669 tests
 │   │   ├── integration/ # 88 tests
-│   │   └── api/         # 127 tests
+│   │   └── api/         # 144 tests
 │   └── alembic/
-├── mobile/test/         # 168 Flutter tests (98.8% line coverage)
+├── mobile/test/         # 188 Flutter tests (99.0% line coverage)
 ├── syllabus/
 │   ├── chapters/units.json        # 12 units
 │   ├── topics/topics.json         # 52 topics
@@ -241,8 +241,35 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   with FontLoader, capture the root layer with physical size); emoji show as
   boxes in the test renderer only.
 
+### Feature — Smart Question Solver ✅ COMPLETE (awaiting approval)
+- POST /api/v1/solver/solve (JWT): SolverRequest {chapter_name<=200, question<=1000,
+  book_answer<=500|null ("" -> null), grade_level="HSC-I", language} ->
+  SolverResponse {question, chapter, solution, steps[{step_number, title, explanation,
+  formula_used, calculation}], method_used, formulas_applied, key_concepts,
+  answer_verified, book_answer, our_answer, sympy_verified, difficulty_level, pro_tip,
+  warning}. Errors as tutor: 401/422/429/502/503/504.
+- Gemini returns JSON (schemas/solver_schemas.py GeminiSolverAnswer); the SERVER renders
+  `solution` in the textbook pattern (services/ai/solver_prompts.py render_solution:
+  Sawal / Diya hua / Poochha gaya / Hal / Qadam n / Jawab / Exam Tip). SolverPrompt has
+  no personal fields; chapter, question and book answer are PII-scrubbed. With a book
+  answer the prompt says "Book ka jawab hai: X. Isi jawab tak pohoncho."
+- services/tutor/solver_service.py: sympy_verified = tutor `summarize` over Gemini's
+  checks; answer_verified = book answer given AND answers_match (practice
+  answer_matching: SymPy equivalence, labels/±/i/√/rounding; similarity fallback).
+  Warnings: book mismatch, SymPy failed, check timeout, unstructured (raw text shown).
+- Timeouts: solver_timeout_seconds=45 -> Gemini 40 s (per attempt AND total) + SymPy
+  5 s. GeminiService._call now takes config + attempt_seconds (tutor unchanged: 25 s).
+- Flutter: Solver is bottom-nav tab 1 (Units, Solver, Practice, Progress; type fixed);
+  screens/solver/solver_screen.dart (form -> loading -> result: header, expandable Qadam
+  cards with Urdu ordinals, formula/concept chips, answer card with book match, SymPy
+  pill, amber Exam Tip, "Dobara Solve Karo", "AI Tutor se poochein" -> matchUnit()
+  picks the unit from the chapter name, else a unit picker; question cut to 500).
+  models/solver_result.dart, services/solver_service.dart (timeout 55 s).
+- Tests: backend 901 (unit 669, integration 88, api 144), 100% coverage; Flutter 188,
+  99.0% line coverage. All 7 gates: PASS.
+
 ## Current Phase
-### None — v1.0 complete + UI upgrade done. Any further work needs explicit user approval.
+### None — awaiting approval after the Smart Question Solver. Any further work needs explicit user approval.
 
 ## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)

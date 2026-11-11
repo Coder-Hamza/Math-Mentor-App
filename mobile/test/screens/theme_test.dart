@@ -192,7 +192,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      for (final String tab in <String>['Practice', 'Progress']) {
+      for (final String tab in <String>['Solver', 'Practice', 'Progress']) {
         await tester.tap(
           find.descendant(
             of: find.byKey(const ValueKey<String>('bottom-nav')),

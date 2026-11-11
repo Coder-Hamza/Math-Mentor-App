@@ -21,6 +21,7 @@ EXPECTED_ROUTES = {
     ("get", "/api/v1/topics/{topic_id}/formulas"),
     ("get", "/api/v1/topics/{topic_id}/questions"),
     ("post", "/api/v1/tutor/ask"),
+    ("post", "/api/v1/solver/solve"),
     ("get", "/api/v1/practice/random"),
     ("post", "/api/v1/practice/submit"),
     ("get", "/api/v1/progress/"),

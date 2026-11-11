@@ -41,7 +41,13 @@ class ApiConfig {
   /// The backend caps the tutor at 30 s; allow a little extra for the network.
   static const Duration tutorTimeout = Duration(seconds: 40);
 
+  /// The solver endpoint caps at 45 s (full textbook solutions); plus network slack.
+  static const Duration solverTimeout = Duration(seconds: 55);
+
   static const int maxQuestionLength = 500;
+  static const int maxSolverChapterLength = 200;
+  static const int maxSolverQuestionLength = 1000;
+  static const int maxSolverBookAnswerLength = 500;
   static const int minPasswordLength = 8;
 }
 

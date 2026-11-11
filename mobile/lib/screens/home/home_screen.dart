@@ -13,9 +13,10 @@ import '../../widgets/loading_widget.dart';
 import '../../widgets/unit_card.dart';
 import '../practice/practice_screen.dart';
 import '../progress/progress_screen.dart';
+import '../solver/solver_screen.dart';
 import '../../core/theme.dart';
 
-/// Home: bottom navigation with Units, Practice and Progress tabs.
+/// Home: bottom navigation with Units, Solver, Practice and Progress tabs.
 ///
 /// Tabs are built the first time they are opened (so Practice does not fetch questions
 /// until the student goes there). Practice keeps its state while switching tabs; Progress
@@ -24,8 +25,9 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   static const int unitsTab = 0;
-  static const int practiceTab = 1;
-  static const int progressTab = 2;
+  static const int solverTab = 1;
+  static const int practiceTab = 2;
+  static const int progressTab = 3;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -68,6 +70,10 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _tab,
         children: <Widget>[
           const UnitsTab(),
+          if (_opened.contains(HomeScreen.solverTab))
+            const SolverScreen(inTab: true)
+          else
+            const SizedBox.shrink(),
           if (_opened.contains(HomeScreen.practiceTab))
             PracticeScreen(
               inTab: true,
@@ -86,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
           key: const ValueKey<String>('bottom-nav'),
           currentIndex: _tab,
           onTap: _select,
+          type: BottomNavigationBarType.fixed, // 4 tabs: keep labels visible
           backgroundColor: Colors.transparent,
           elevation: 0,
           selectedItemColor: p.accent,
@@ -95,6 +102,10 @@ class _HomeScreenState extends State<HomeScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_book_rounded),
               label: 'Units',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.manage_search_rounded),
+              label: 'Solver',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_rounded),

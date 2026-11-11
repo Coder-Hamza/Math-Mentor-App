@@ -13,6 +13,7 @@ import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/practice_service.dart';
 import 'services/progress_service.dart';
+import 'services/solver_service.dart';
 import 'services/storage_service.dart';
 
 /// Closes the on-screen keyboard when the student taps anywhere outside a text
@@ -73,6 +74,7 @@ class _MathMentorAppState extends State<MathMentorApp> {
   final ThemeData _darkTheme = buildDarkTheme();
   late final PracticeService _practice = PracticeService(_api);
   late final ProgressService _progress = ProgressService(_api);
+  late final SolverService _solver = SolverService(_api);
   AuthStatus _lastStatus = AuthStatus.unknown;
 
   @override
@@ -113,6 +115,7 @@ class _MathMentorAppState extends State<MathMentorApp> {
         Provider<ApiService>.value(value: _api),
         Provider<PracticeService>.value(value: _practice),
         Provider<ProgressService>.value(value: _progress),
+        Provider<SolverService>.value(value: _solver),
         ChangeNotifierProvider<AuthProvider>.value(value: _auth),
         ChangeNotifierProvider<UnitsProvider>.value(value: _units),
         ChangeNotifierProvider<ThemeProvider>.value(value: _theme),
