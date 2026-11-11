@@ -2,14 +2,20 @@
 
 * The network call is injectable (``generate=``) so tests never hit the real API.
 * All failures are mapped to ``AIServiceError`` subclasses — callers never see SDK errors.
-* Only transient failures (5xx / network) are retried; quota and auth errors are not.
+* Only transient failures (5xx / network) are retried on the same model.
+* Model fallback: a 404 (model unavailable) or 429 (that model's quota used up) on the primary
+  moves on to ``GEMINI_FALLBACK_MODEL``. 429'd models cool down (Google's retryDelay, else
+  60 s); 404'd models are skipped for the rest of the process.
+* The local ``RateLimiter`` is app-wide (all models together) and never triggers fallback.
 * The prompt is built from ``TutorPrompt`` (no personal fields) and free text is PII-scrubbed.
 """
 
 import asyncio
 import json
 import logging
+import math
 import re
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
@@ -55,6 +61,28 @@ class _ModelNotFoundError(Exception):
     """HTTP 404 for a model name: retired or not available to this key. Internal only."""
 
 
+class _ModelQuotaError(Exception):
+    """HTTP 429 for one model (its free-tier quota is used up). Internal only."""
+
+    def __init__(self, retry_after: int) -> None:
+        super().__init__(retry_after)
+        self.retry_after = retry_after
+
+
+DEFAULT_QUOTA_COOLDOWN: Final = 60
+_RETRY_DELAY: Final = re.compile(r"^\s*(\d+(?:\.\d+)?)s\s*$")
+
+
+def _retry_after_seconds(exc: genai_errors.APIError) -> int:
+    """Read Google's ``RetryInfo.retryDelay`` (e.g. ``"37s"``); default 60 s."""
+    error = exc.details.get("error", {}) if isinstance(exc.details, dict) else {}
+    for detail in error.get("details", []) if isinstance(error, dict) else []:
+        delay = detail.get("retryDelay") if isinstance(detail, dict) else None
+        if isinstance(delay, str) and (match := _RETRY_DELAY.match(delay)):
+            return max(1, math.ceil(float(match.group(1))))
+    return DEFAULT_QUOTA_COOLDOWN
+
+
 def parse_answer(text: str) -> GeminiResult:
     """Parse Gemini's JSON. Never raises: unusable JSON degrades to a plain-text answer."""
     stripped = text.strip()
@@ -75,9 +103,6 @@ def parse_answer(text: str) -> GeminiResult:
 
 def _map_api_error(exc: genai_errors.APIError) -> AIServiceError:
     code = exc.code
-    if code == 429:
-        logger.warning("Gemini quota exhausted (HTTP 429 from Google)")
-        return AIQuotaExceededError(60)
     if code in (401, 403):
         logger.error("Gemini rejected the API key (HTTP %s) — check GEMINI_API_KEY", code)
         return AINotConfiguredError()
@@ -104,6 +129,7 @@ class GeminiService:
         generate: GenerateFn | None = None,
         rate_limiter: RateLimiter | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._settings = settings
         self._generate = generate
@@ -111,8 +137,11 @@ class GeminiService:
             settings.gemini_rate_limit_per_minute, settings.gemini_rate_limit_per_day
         )
         self._sleep = sleep
+        self._clock = clock
         # Models that returned 404 in this process; skipped so we don't spend quota on them.
         self._unavailable_models: set[str] = set()
+        # Models that returned 429, mapped to the monotonic time their cooldown ends.
+        self._quota_cooldown_until: dict[str, float] = {}
 
     @property
     def models(self) -> list[str]:
@@ -160,17 +189,45 @@ class GeminiService:
         return GeminiResult(result.answer, result.structured, model)
 
     async def _call(self, contents: str) -> tuple[str, str]:
-        """Try each model in order; only a 404 (model unavailable) moves on to the next."""
+        """Try each model in order. 404 (model unavailable) or 429 (model quota used up)
+        moves on to the next model; every other error is final."""
         generate = self._get_generate()
         config = self._config()
-        candidates = [m for m in self.models if m not in self._unavailable_models]
-        for model in candidates or self.models:  # all marked unavailable -> probe them again
+        candidates = self._candidates()
+        quota_waits: list[int] = []
+        for model in candidates:
             try:
                 return model, await self._call_model(generate, model, contents, config)
             except _ModelNotFoundError:
                 self._unavailable_models.add(model)
+            except _ModelQuotaError as exc:
+                self._quota_cooldown_until[model] = self._clock() + exc.retry_after
+                quota_waits.append(exc.retry_after)
+                logger.warning(
+                    "Gemini model %r hit its quota (HTTP 429); skipping it for %ds",
+                    model,
+                    exc.retry_after,
+                )
+        if quota_waits:
+            raise AIQuotaExceededError(min(quota_waits))
         logger.error("No configured Gemini model is available: %s", ", ".join(self.models))
         raise AIModelUnavailableError()
+
+    def _candidates(self) -> list[str]:
+        """Models worth calling now, in priority order.
+
+        404'd models are skipped (all 404'd -> probe them all again). Models cooling down
+        after a 429 are skipped; if every model is cooling down we fail fast without
+        spending a request.
+        """
+        usable = [m for m in self.models if m not in self._unavailable_models] or self.models
+        now = self._clock()
+        ready = [m for m in usable if self._quota_cooldown_until.get(m, 0.0) <= now]
+        if not ready:
+            wait = min(self._quota_cooldown_until[m] for m in usable) - now
+            logger.warning("All Gemini models are cooling down after quota errors")
+            raise AIQuotaExceededError(max(1, math.ceil(wait)))
+        return ready
 
     async def _call_model(
         self, generate: GenerateFn, model: str, contents: str, config: types.GenerateContentConfig
@@ -188,6 +245,8 @@ class GeminiService:
                 if isinstance(exc, genai_errors.APIError) and exc.code == 404:
                     logger.error("Gemini model %r unavailable (HTTP 404): %s", model, _detail(exc))
                     raise _ModelNotFoundError(model) from exc
+                if isinstance(exc, genai_errors.APIError) and exc.code == 429:
+                    raise _ModelQuotaError(_retry_after_seconds(exc)) from exc
                 if _is_transient(exc) and attempt < attempts:
                     logger.warning("Transient Gemini error, retrying (%d/%d)", attempt, attempts)
                     await self._sleep(0.5 * 2 ** (attempt - 1))

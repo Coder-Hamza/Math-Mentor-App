@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 import pytest
+from google.genai import errors as genai_errors
 from pydantic import SecretStr, ValidationError
 
 from app.schemas.ai_schemas import GeminiTutorAnswer, Language
@@ -28,6 +29,7 @@ from tests.fakes import (
     api_error,
     make_gemini,
     make_settings,
+    no_sleep,
 )
 
 ASK: dict[str, Any] = {
@@ -220,16 +222,17 @@ async def test_empty_reply_is_bad_response(text: str | None) -> None:
 # ------------------------------------------------------------------ errors and retries
 
 
-async def test_quota_429_maps_to_quota_error_without_retry(
+async def test_quota_429_without_fallback_is_quota_error_and_not_retried(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     fake = FakeGenerate(api_error(429))
+    service = make_gemini(fake, gemini_max_retries=2, gemini_fallback_model=None)
     with caplog.at_level(logging.WARNING), pytest.raises(AIQuotaExceededError) as info:
-        await make_gemini(fake, gemini_max_retries=2).ask_tutor(**ASK)
-    assert len(fake.calls) == 1  # quota errors are not retried
+        await service.ask_tutor(**ASK)
+    assert len(fake.calls) == 1  # quota errors are not retried on the same model
     assert info.value.status_code == 429
     assert info.value.headers["Retry-After"] == "60"
-    assert "quota exhausted" in caplog.text
+    assert "hit its quota (HTTP 429)" in caplog.text
 
 
 @pytest.mark.parametrize("code", [401, 403])
@@ -245,8 +248,12 @@ PRIMARY, FALLBACK = "gemini-3.5-flash", "gemini-3.1-flash-lite"
 
 
 def _fallback_service(fake: FakeGenerate, **overrides: Any) -> GeminiService:
-    settings = {"gemini_model": PRIMARY, "gemini_fallback_model": FALLBACK} | overrides
-    return make_gemini(fake, gemini_max_retries=2, **settings)
+    settings = {
+        "gemini_model": PRIMARY,
+        "gemini_fallback_model": FALLBACK,
+        "gemini_max_retries": 2,
+    } | overrides
+    return make_gemini(fake, **settings)
 
 
 async def test_primary_404_falls_back_to_secondary(caplog: pytest.LogCaptureFixture) -> None:
@@ -296,20 +303,140 @@ async def test_without_distinct_fallback_only_primary_is_tried(fallback: str | N
 
 @pytest.mark.parametrize(
     ("error", "expected"),
-    [(api_error(429), AIQuotaExceededError), (api_error(401), AINotConfiguredError)],
+    [
+        (api_error(401), AINotConfiguredError),
+        (api_error(400), AIUnavailableError),
+        (api_error(503), AIUnavailableError),
+    ],
 )
-async def test_non_404_errors_do_not_trigger_fallback(
+async def test_other_errors_do_not_trigger_fallback(
     error: Exception, expected: type[Exception]
 ) -> None:
     fake = FakeGenerate(error)
     with pytest.raises(expected):
-        await _fallback_service(fake).ask_tutor(**ASK)
+        await _fallback_service(fake, gemini_max_retries=0).ask_tutor(**ASK)
     assert [c["model"] for c in fake.calls] == [PRIMARY]
 
 
 def test_models_property_order() -> None:
     service = _fallback_service(FakeGenerate())
     assert service.models == [PRIMARY, FALLBACK]
+
+
+# ------------------------------------------------------------------ quota fallback (429)
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _quota_service(fake: FakeGenerate, clock: FakeClock, **overrides: Any) -> GeminiService:
+    settings = {"gemini_model": PRIMARY, "gemini_fallback_model": FALLBACK} | overrides
+    return GeminiService(
+        make_settings(gemini_max_retries=2, **settings),
+        generate=fake,
+        rate_limiter=RateLimiter(1000, 100_000),
+        sleep=no_sleep,
+        clock=clock,
+    )
+
+
+async def test_primary_quota_429_falls_back(caplog: pytest.LogCaptureFixture) -> None:
+    fake = FakeGenerate(api_error(429), answer_json())
+    with caplog.at_level(logging.WARNING):
+        result = await _quota_service(fake, FakeClock()).ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK]  # 429 not retried on primary
+    assert result.model == FALLBACK
+    assert f"Gemini model '{PRIMARY}' hit its quota (HTTP 429); skipping it for 60s" in caplog.text
+
+
+async def test_quota_cooldown_skips_primary_then_expires() -> None:
+    clock = FakeClock()
+    fake = FakeGenerate(api_error(429), answer_json())
+    service = _quota_service(fake, clock)
+
+    await service.ask_tutor(**ASK)  # primary 429 -> fallback
+    clock.now += 59
+    second = await service.ask_tutor(**ASK)  # still cooling down: straight to fallback
+    clock.now += 2
+    third = await service.ask_tutor(**ASK)  # cooldown over: primary again
+
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK, FALLBACK, PRIMARY]
+    assert (second.model, third.model) == (FALLBACK, PRIMARY)
+
+
+async def test_google_retry_delay_sets_cooldown_and_retry_after() -> None:
+    clock = FakeClock()
+    fake = FakeGenerate(api_error(429, retry_delay="37.2s"))
+    service = _quota_service(fake, clock)
+    with pytest.raises(AIQuotaExceededError) as info:
+        await service.ask_tutor(**ASK)
+    assert info.value.headers["Retry-After"] == "38"
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK]
+
+
+async def test_both_models_on_quota_fail_fast_without_calling_google() -> None:
+    clock = FakeClock()
+    fake = FakeGenerate(api_error(429))
+    service = _quota_service(fake, clock)
+    with pytest.raises(AIQuotaExceededError):
+        await service.ask_tutor(**ASK)
+    calls_after_first = len(fake.calls)
+
+    clock.now += 45
+    with pytest.raises(AIQuotaExceededError) as info:
+        await service.ask_tutor(**ASK)
+
+    assert len(fake.calls) == calls_after_first == 2  # no request spent while cooling down
+    assert info.value.headers["Retry-After"] == "15"
+
+
+async def test_primary_404_and_fallback_429_reports_quota() -> None:
+    fake = FakeGenerate(api_error(404), api_error(429))
+    with pytest.raises(AIQuotaExceededError):
+        await _quota_service(fake, FakeClock()).ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK]
+
+
+@pytest.mark.parametrize(
+    ("details", "expected"),
+    [
+        ([{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "12s"}], 12),
+        ([{"retryDelay": "0.2s"}], 1),
+        ([{"retryDelay": "soon"}], 60),
+        (["not-a-dict"], 60),
+        (None, 60),
+    ],
+)
+def test_retry_after_parsing(details: object, expected: int) -> None:
+    error: dict[str, object] = {"code": 429, "message": "q", "status": "RESOURCE_EXHAUSTED"}
+    if details is not None:
+        error["details"] = details
+    exc = genai_errors.ClientError(429, {"error": error})
+    assert gemini_module._retry_after_seconds(exc) == expected
+
+
+def test_retry_after_parsing_with_non_dict_payload() -> None:
+    exc = genai_errors.ClientError(429, ["unexpected", "list"])
+    assert gemini_module._retry_after_seconds(exc) == 60
+
+
+async def test_local_rate_limiter_does_not_trigger_fallback() -> None:
+    fake = FakeGenerate()
+    service = GeminiService(
+        make_settings(gemini_model=PRIMARY, gemini_fallback_model=FALLBACK),
+        generate=fake,
+        rate_limiter=RateLimiter(per_minute=1, per_day=100),
+        sleep=no_sleep,
+    )
+    await service.ask_tutor(**ASK)
+    with pytest.raises(AIQuotaExceededError):
+        await service.ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY]
 
 
 async def test_other_client_error_maps_to_unavailable() -> None:

@@ -369,4 +369,38 @@ Gemini is faked in every test (`tests/fakes.py`).
   steps and 2 formulas, with `verification_status: verified` and confidence 1.0. The temporary
   test user was deleted afterwards.
 - **Follow-up:** `LOG_LEVEL` is not wired to Python logging yet, so the app's INFO logs (for
-  example the answering model) are not printed.
+  example the answering model) are not printed. Fixed below.
+
+---
+
+## Fix: logging setup and quota fallback (2026-11-11)
+
+**Logging**
+- **Configuration:** `app/core/logging.py` attaches one handler to the `app` logger at
+  `LOG_LEVEL`, from `create_app`. Calling it again is safe, and records still propagate, so
+  pytest's `caplog` keeps working.
+- **Validation:** `LOG_LEVEL` is case-insensitive and must be one of DEBUG, INFO, WARNING,
+  ERROR or CRITICAL.
+- **Request lines:** `app/api/middleware.py` logs `METHOD /path -> status (ms)` for every
+  request, including ones that crash with a 500. It never logs query strings, headers or
+  bodies.
+- **Tutor log:** "Tutor answer received" now appears, showing
+  `{"model", "structured", "steps", "checks"}`.
+- **Checked on a real server:** `INFO app.request: GET /health -> 200 (53 ms)`.
+
+**Quota fallback (429)**
+- **Trigger:** when the primary returns 429, the service tries `gemini-3.1-flash-lite`. A 429
+  is never retried on the same model.
+- **Cooldown:** a model that returned 429 is skipped until its cooldown ends. The cooldown
+  uses Google's `RetryInfo.retryDelay` (for example `37.2s` becomes 38 s), or 60 s if there is
+  none.
+- **Everything cooling down:** if every model is cooling down, the tutor returns 429 right
+  away with an accurate `Retry-After`, without spending a request.
+- **Mixed failures:** primary 404 plus fallback 429 returns 429 (quota). Both 429 return 429
+  with the shorter wait.
+- **Unchanged:** 5xx, 400 and 401/403 errors never switch models. The local `RateLimiter` is
+  app-wide (both models share the 10/min and 250/day budget) and does not trigger the
+  fallback.
+
+**Results:** 23 new tests, **544 passing** (unit 386, integration 62, api 96), **100%
+coverage, and all 7 gates pass.**

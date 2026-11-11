@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
-    log_level: str = "INFO"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     # Comma-separated list. Browsers only — the native Android app does not send Origin.
     cors_origins: str = "http://localhost,http://10.0.2.2"
 
@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     @property
     def gemini_budget_seconds(self) -> float:
         return max(self.tutor_timeout_seconds - self.sympy_timeout_seconds, 1.0)
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _uppercase_log_level(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
 
     @property
     def cors_origin_list(self) -> list[str]:

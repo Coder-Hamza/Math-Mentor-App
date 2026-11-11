@@ -30,8 +30,13 @@ def answer_json(**overrides: Any) -> str:
     return json.dumps(GOOD_ANSWER | overrides)
 
 
-def api_error(code: int) -> genai_errors.APIError:
-    payload = {"error": {"code": code, "message": "simulated", "status": "SIMULATED"}}
+def api_error(code: int, *, retry_delay: str | None = None) -> genai_errors.APIError:
+    error: dict[str, Any] = {"code": code, "message": "simulated", "status": "SIMULATED"}
+    if retry_delay is not None:
+        error["details"] = [
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retry_delay}
+        ]
+    payload = {"error": error}
     cls = genai_errors.ClientError if code < 500 else genai_errors.ServerError
     return cls(code, payload)
 

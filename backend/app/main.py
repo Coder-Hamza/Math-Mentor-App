@@ -4,8 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_exception_handlers
+from app.api.middleware import log_requests
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
+from app.core.logging import configure_logging
 
 API_VERSION = "0.3.0"
 
@@ -19,6 +21,7 @@ OPENAPI_TAGS = [
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(
         title=settings.app_name,
         version=API_VERSION,
@@ -36,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
+    app.middleware("http")(log_requests)  # added last = outermost: times the whole request
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
 

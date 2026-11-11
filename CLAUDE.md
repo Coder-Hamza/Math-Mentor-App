@@ -139,6 +139,8 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
   Gemini is ALWAYS faked in tests (tests/fakes.py)
 - Fix (after Phase 3): model 3.5-flash + 3.1-flash-lite fallback on 404;
   tests now 521/521, 100% coverage
+- Fix: LOG_LEVEL wired + request logging; fallback also on 429 with
+  cooldown. Tests 544/544 (unit 386, integration 62, api 96), 100% coverage
 - All 7 gates: PASS
 
 ## Current Phase
@@ -190,13 +192,19 @@ Phase 7: Polish, offline support, final testing
 - docs/TESTING.md and docs/PRD.md written (Phase 3 start)
 - GEMINI MODELS (user-approved 2026-11-11):
   GEMINI_MODEL=gemini-3.5-flash (primary)
-  GEMINI_FALLBACK_MODEL=gemini-3.1-flash-lite (tried ONLY on HTTP 404)
-  gemini-2.5-flash is retired for new keys (404). If both 404 -> 503
-  ai_model_unavailable. A 404'd model is skipped for the rest of the process.
+  GEMINI_FALLBACK_MODEL=gemini-3.1-flash-lite
+  Fallback triggers: HTTP 404 (model unavailable -> skipped for the rest of
+  the process) and HTTP 429 (that model's quota -> cooldown for Google's
+  retryDelay, else 60s). All models cooling down -> 429 immediately, no
+  request spent. Both 404 -> 503 ai_model_unavailable. 5xx/401/400 never
+  switch models. The LOCAL RateLimiter is app-wide and does NOT trigger
+  fallback. gemini-2.5-flash is retired for new keys (404).
   Live check 2026-11-11: POST /tutor/ask -> 200 in 9.5s from
   gemini-3.5-flash, Roman-Urdu/English steps, sympy_verified=true.
-- App logging (LOG_LEVEL) is not wired yet: INFO logs from app.* are not
-  printed by uvicorn (only WARNING+ via Python's last-resort handler).
+- Logging: LOG_LEVEL (.env, case-insensitive, validated) configures the
+  "app" logger in create_app (app/core/logging.py). Middleware
+  app/api/middleware.py logs "METHOD /path -> status (ms)" — path only,
+  never query string/headers/body. Tutor logs which model answered.
 - SymPy has no type stubs: mypy override ignore_missing_imports for sympy
 - Never use the Edit/Write tools to write "\uXXXX" escapes — they get
   converted to literal characters (RUF001). Use a script with chr(92).
