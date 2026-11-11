@@ -27,6 +27,17 @@ class AINotConfiguredError(AIServiceError):
         super().__init__("The AI tutor is not configured on this server.")
 
 
+class AIModelUnavailableError(AIServiceError):
+    """Every configured model (primary and fallback) returned HTTP 404."""
+
+    code = "ai_model_unavailable"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The AI tutor's language model is not available right now. Please try again later."
+        )
+
+
 class AIQuotaExceededError(AIServiceError):
     status_code = 429
     code = "ai_quota_exceeded"

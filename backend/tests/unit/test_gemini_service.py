@@ -11,12 +11,13 @@ from app.schemas.ai_schemas import GeminiTutorAnswer, Language
 from app.services.ai import gemini_service as gemini_module
 from app.services.ai.errors import (
     AIBadResponseError,
+    AIModelUnavailableError,
     AINotConfiguredError,
     AIQuotaExceededError,
     AITimeoutError,
     AIUnavailableError,
 )
-from app.services.ai.gemini_service import GeminiService, parse_answer
+from app.services.ai.gemini_service import GeminiResult, GeminiService, parse_answer
 from app.services.ai.privacy import REDACTED, scrub_pii
 from app.services.ai.prompts import SYSTEM_PROMPT, TutorPrompt, build_prompt
 from app.services.ai.rate_limiter import RateLimiter
@@ -176,13 +177,14 @@ def test_fallback_is_truncated() -> None:
 
 async def test_ask_tutor_sends_prompt_and_config() -> None:
     fake = FakeGenerate(answer_json())
-    service = make_gemini(fake, gemini_model="gemini-2.5-flash")
+    service = make_gemini(fake, gemini_model="gemini-3.5-flash")
 
     result = await service.ask_tutor(**ASK, reference_formulas=["F: x = 1"])
 
     assert result.structured is True
+    assert result.model == "gemini-3.5-flash"
     (call,) = fake.calls
-    assert call["model"] == "gemini-2.5-flash"
+    assert call["model"] == "gemini-3.5-flash"
     assert ASK["question"] in call["contents"]
     assert "- F: x = 1" in call["contents"]
     config = call["config"]
@@ -237,13 +239,77 @@ async def test_rejected_key_maps_to_not_configured(code: int) -> None:
     assert info.value.status_code == 503
 
 
-async def test_retired_model_404_maps_to_not_configured(caplog: pytest.LogCaptureFixture) -> None:
+# ------------------------------------------------------------------ model fallback (404)
+
+PRIMARY, FALLBACK = "gemini-3.5-flash", "gemini-3.1-flash-lite"
+
+
+def _fallback_service(fake: FakeGenerate, **overrides: Any) -> GeminiService:
+    settings = {"gemini_model": PRIMARY, "gemini_fallback_model": FALLBACK} | overrides
+    return make_gemini(fake, gemini_max_retries=2, **settings)
+
+
+async def test_primary_404_falls_back_to_secondary(caplog: pytest.LogCaptureFixture) -> None:
     """Seen for real: Google retired gemini-2.5-flash for new keys (HTTP 404)."""
+    fake = FakeGenerate(api_error(404), answer_json())
+    with caplog.at_level(logging.ERROR):
+        result = await _fallback_service(fake).ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK]  # 404 is not retried
+    assert result.model == FALLBACK
+    assert result.structured is True
+    assert f"Gemini model '{PRIMARY}' unavailable (HTTP 404)" in caplog.text
+
+
+async def test_unavailable_primary_is_skipped_on_later_requests() -> None:
+    fake = FakeGenerate(api_error(404), answer_json())
+    service = _fallback_service(fake)
+    await service.ask_tutor(**ASK)
+    await service.ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK, FALLBACK]
+
+
+async def test_both_models_404_is_503_model_unavailable(caplog: pytest.LogCaptureFixture) -> None:
     fake = FakeGenerate(api_error(404))
-    with caplog.at_level(logging.ERROR), pytest.raises(AINotConfiguredError):
-        await make_gemini(fake, gemini_max_retries=2).ask_tutor(**ASK)
-    assert len(fake.calls) == 1
-    assert "check GEMINI_MODEL" in caplog.text
+    with caplog.at_level(logging.ERROR), pytest.raises(AIModelUnavailableError) as info:
+        await _fallback_service(fake).ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY, FALLBACK]
+    assert (info.value.status_code, info.value.code) == (503, "ai_model_unavailable")
+    assert "No configured Gemini model is available" in caplog.text
+
+
+async def test_all_models_marked_unavailable_are_probed_again() -> None:
+    fake = FakeGenerate(api_error(404), api_error(404), answer_json())
+    service = _fallback_service(fake)
+    with pytest.raises(AIModelUnavailableError):
+        await service.ask_tutor(**ASK)
+    result = await service.ask_tutor(**ASK)  # e.g. the key gained access again
+    assert result.model == PRIMARY
+
+
+@pytest.mark.parametrize("fallback", [None, "", PRIMARY])
+async def test_without_distinct_fallback_only_primary_is_tried(fallback: str | None) -> None:
+    fake = FakeGenerate(api_error(404))
+    with pytest.raises(AIModelUnavailableError):
+        await _fallback_service(fake, gemini_fallback_model=fallback).ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY]
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [(api_error(429), AIQuotaExceededError), (api_error(401), AINotConfiguredError)],
+)
+async def test_non_404_errors_do_not_trigger_fallback(
+    error: Exception, expected: type[Exception]
+) -> None:
+    fake = FakeGenerate(error)
+    with pytest.raises(expected):
+        await _fallback_service(fake).ask_tutor(**ASK)
+    assert [c["model"] for c in fake.calls] == [PRIMARY]
+
+
+def test_models_property_order() -> None:
+    service = _fallback_service(FakeGenerate())
+    assert service.models == [PRIMARY, FALLBACK]
 
 
 async def test_other_client_error_maps_to_unavailable() -> None:
@@ -337,5 +403,6 @@ def test_get_gemini_service_is_singleton() -> None:
 
 
 def test_describe_answer_has_no_content() -> None:
-    summary = gemini_module.describe_answer(parse_answer(answer_json()))
-    assert summary == '{"structured": true, "steps": 3, "checks": 2}'
+    result = parse_answer(answer_json())
+    summary = gemini_module.describe_answer(GeminiResult(result.answer, True, "gemini-3.5-flash"))
+    assert summary == '{"model": "gemini-3.5-flash", "structured": true, "steps": 3, "checks": 2}'

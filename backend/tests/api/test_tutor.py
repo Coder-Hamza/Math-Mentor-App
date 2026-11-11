@@ -191,7 +191,7 @@ def test_unknown_topic_is_404(
         (api_error(503), 503, "ai_unavailable"),
         (api_error(500), 503, "ai_unavailable"),
         (api_error(401), 503, "ai_not_configured"),
-        (api_error(404), 503, "ai_not_configured"),
+        (api_error(404), 503, "ai_model_unavailable"),  # primary and fallback both 404
         (api_error(429), 429, "ai_quota_exceeded"),
         ("", 502, "ai_bad_response"),
     ],

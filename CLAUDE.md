@@ -137,6 +137,8 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
 - Timeouts: TUTOR 30s total = Gemini 25s budget + SymPy 5s
 - Tests: 512/512 pass (unit 354, integration 62, api 96), 100% coverage;
   Gemini is ALWAYS faked in tests (tests/fakes.py)
+- Fix (after Phase 3): model 3.5-flash + 3.1-flash-lite fallback on 404;
+  tests now 521/521, 100% coverage
 - All 7 gates: PASS
 
 ## Current Phase
@@ -186,11 +188,15 @@ Phase 7: Polish, offline support, final testing
 - Tokens are stateless: no logout/revocation yet; no login rate limiting
   yet — consider before production
 - docs/TESTING.md and docs/PRD.md written (Phase 3 start)
-- !! GEMINI MODEL: gemini-2.5-flash returns HTTP 404 "no longer available
-  to new users" for this API key (verified 2026-11-11 with one real call).
-  The app degrades to 503 ai_not_configured. User must choose a model the
-  free tier allows and set GEMINI_MODEL in backend/.env (e.g. a current
-  flash/flash-lite model) — do not change it without user approval.
+- GEMINI MODELS (user-approved 2026-11-11):
+  GEMINI_MODEL=gemini-3.5-flash (primary)
+  GEMINI_FALLBACK_MODEL=gemini-3.1-flash-lite (tried ONLY on HTTP 404)
+  gemini-2.5-flash is retired for new keys (404). If both 404 -> 503
+  ai_model_unavailable. A 404'd model is skipped for the rest of the process.
+  Live check 2026-11-11: POST /tutor/ask -> 200 in 9.5s from
+  gemini-3.5-flash, Roman-Urdu/English steps, sympy_verified=true.
+- App logging (LOG_LEVEL) is not wired yet: INFO logs from app.* are not
+  printed by uvicorn (only WARNING+ via Python's last-resort handler).
 - SymPy has no type stubs: mypy override ignore_missing_imports for sympy
 - Never use the Edit/Write tools to write "\uXXXX" escapes — they get
   converted to literal characters (RUF001). Use a script with chr(92).

@@ -340,4 +340,33 @@ Gemini is faked in every test (`tests/fakes.py`).
 - **Timeouts:** 30 s total, split into 25 s for Gemini and 5 s for SymPy.
   `GEMINI_TIMEOUT_SECONDS` changed from 30 to 25.
 
-**Phase 3 status: COMPLETE. Waiting for approval before starting Phase 4.**
+**Phase 3 status: COMPLETE.** Committed as `f5401c9`.
+
+---
+
+## Fix: Gemini model update (2026-11-11)
+
+- **Models:** `GEMINI_MODEL=gemini-3.5-flash` (primary) and
+  `GEMINI_FALLBACK_MODEL=gemini-3.1-flash-lite`, both chosen by the user. The defaults in
+  `config.py` match.
+- **Fallback:**
+  - **Trigger:** the fallback is tried **only when the primary returns HTTP 404**. A 404 is
+    never retried. Quota, auth and 5xx errors keep their existing handling and do not switch
+    models.
+  - **Memory:** a model that returned 404 is skipped for the rest of the process. If every
+    model is marked unavailable, they are all probed again.
+  - **Both fail:** if both models return 404, the response is 503 `ai_model_unavailable`
+    ("The AI tutor's language model is not available right now. Please try again later."),
+    and the server logs which models were tried.
+- **Logging:** `GeminiResult.model` records which model answered. It appears in the log
+  summary.
+- **Tests:** 9 new ones (fallback success, the skip-after-404 cache, both models failing,
+  re-probing, no or duplicate fallback, non-404 errors not falling back). **521 passing, 100%
+  coverage, all 7 gates pass.**
+- **Live check (one real request, real HTTP server):** `POST /api/v1/tutor/ask` with "What is
+  a complex number? Explain with example." returned **HTTP 200 in 9.5 s**, answered by
+  `gemini-3.5-flash` (no 404 or fallback in the server log). The answer had 5 Roman-Urdu/English
+  steps and 2 formulas, with `verification_status: verified` and confidence 1.0. The temporary
+  test user was deleted afterwards.
+- **Follow-up:** `LOG_LEVEL` is not wired to Python logging yet, so the app's INFO logs (for
+  example the answering model) are not printed.

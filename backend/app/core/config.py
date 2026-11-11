@@ -40,7 +40,9 @@ class Settings(BaseSettings):
 
     # ---- Gemini (free tier) ----
     gemini_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    # gemini-2.5-flash returns 404 for new keys (Nov 2026). Fallback is tried only on 404.
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_fallback_model: str | None = "gemini-3.1-flash-lite"
     gemini_timeout_seconds: float = Field(default=25, gt=0)  # per attempt
     gemini_max_retries: int = Field(default=2, ge=0, le=5)  # only for transient 5xx/network
     gemini_rate_limit_per_minute: int = Field(default=10, gt=0)

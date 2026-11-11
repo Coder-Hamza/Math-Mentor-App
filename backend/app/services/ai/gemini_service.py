@@ -25,6 +25,7 @@ from app.core.config import Settings, get_settings
 from app.schemas.ai_schemas import GeminiTutorAnswer, Language
 from app.services.ai.errors import (
     AIBadResponseError,
+    AIModelUnavailableError,
     AINotConfiguredError,
     AIQuotaExceededError,
     AIServiceError,
@@ -47,6 +48,11 @@ _CODE_FENCE: Final = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL
 class GeminiResult:
     answer: GeminiTutorAnswer
     structured: bool  # False => Gemini ignored the JSON format; ``answer`` wraps raw text
+    model: str = ""  # which model actually answered (primary or fallback)
+
+
+class _ModelNotFoundError(Exception):
+    """HTTP 404 for a model name: retired or not available to this key. Internal only."""
 
 
 def parse_answer(text: str) -> GeminiResult:
@@ -75,12 +81,13 @@ def _map_api_error(exc: genai_errors.APIError) -> AIServiceError:
     if code in (401, 403):
         logger.error("Gemini rejected the API key (HTTP %s) — check GEMINI_API_KEY", code)
         return AINotConfiguredError()
-    detail = str(getattr(exc, "message", "") or "")[:300]  # Google's message; never user data
-    if code == 404:
-        logger.error("Gemini model not available (HTTP 404) — check GEMINI_MODEL: %s", detail)
-        return AINotConfiguredError()
-    logger.error("Gemini API error HTTP %s: %s", code, detail)
+    logger.error("Gemini API error HTTP %s: %s", code, _detail(exc))
     return AIUnavailableError()
+
+
+def _detail(exc: genai_errors.APIError) -> str:
+    """Google's error message (never contains user data), truncated for logs."""
+    return str(getattr(exc, "message", "") or "")[:300]
 
 
 def _is_transient(exc: Exception) -> bool:
@@ -104,6 +111,14 @@ class GeminiService:
             settings.gemini_rate_limit_per_minute, settings.gemini_rate_limit_per_day
         )
         self._sleep = sleep
+        # Models that returned 404 in this process; skipped so we don't spend quota on them.
+        self._unavailable_models: set[str] = set()
+
+    @property
+    def models(self) -> list[str]:
+        """Primary first, then the fallback (if configured and different)."""
+        primary, fallback = self._settings.gemini_model, self._settings.gemini_fallback_model
+        return [primary] + ([fallback] if fallback and fallback != primary else [])
 
     def _get_generate(self) -> GenerateFn:
         if self._generate is None:
@@ -140,24 +155,39 @@ class GeminiService:
             language=language,
             reference_formulas=tuple(reference_formulas),
         )
-        text = await self._call(build_prompt(prompt))
-        return parse_answer(text)
+        model, text = await self._call(build_prompt(prompt))
+        result = parse_answer(text)
+        return GeminiResult(result.answer, result.structured, model)
 
-    async def _call(self, contents: str) -> str:
+    async def _call(self, contents: str) -> tuple[str, str]:
+        """Try each model in order; only a 404 (model unavailable) moves on to the next."""
         generate = self._get_generate()
         config = self._config()
+        candidates = [m for m in self.models if m not in self._unavailable_models]
+        for model in candidates or self.models:  # all marked unavailable -> probe them again
+            try:
+                return model, await self._call_model(generate, model, contents, config)
+            except _ModelNotFoundError:
+                self._unavailable_models.add(model)
+        logger.error("No configured Gemini model is available: %s", ", ".join(self.models))
+        raise AIModelUnavailableError()
+
+    async def _call_model(
+        self, generate: GenerateFn, model: str, contents: str, config: types.GenerateContentConfig
+    ) -> str:
         attempts = self._settings.gemini_max_retries + 1
         for attempt in range(1, attempts + 1):
             self._limiter.acquire()
             try:
                 async with asyncio.timeout(self._settings.gemini_timeout_seconds):
-                    response = await generate(
-                        model=self._settings.gemini_model, contents=contents, config=config
-                    )
+                    response = await generate(model=model, contents=contents, config=config)
             except TimeoutError:
                 logger.warning("Gemini call timed out (attempt %d/%d)", attempt, attempts)
                 raise AITimeoutError() from None
             except (genai_errors.APIError, httpx.TransportError, OSError) as exc:
+                if isinstance(exc, genai_errors.APIError) and exc.code == 404:
+                    logger.error("Gemini model %r unavailable (HTTP 404): %s", model, _detail(exc))
+                    raise _ModelNotFoundError(model) from exc
                 if _is_transient(exc) and attempt < attempts:
                     logger.warning("Transient Gemini error, retrying (%d/%d)", attempt, attempts)
                     await self._sleep(0.5 * 2 ** (attempt - 1))
@@ -183,5 +213,10 @@ def describe_answer(result: GeminiResult) -> str:
     """Compact, PII-free summary for logs."""
     a = result.answer
     return json.dumps(
-        {"structured": result.structured, "steps": len(a.steps), "checks": len(a.checks)}
+        {
+            "model": result.model,
+            "structured": result.structured,
+            "steps": len(a.steps),
+            "checks": len(a.checks),
+        }
     )
