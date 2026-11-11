@@ -7,7 +7,10 @@ import '../../models/tutor_response.dart';
 import '../../models/unit.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
+import '../../core/theme.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glass_scaffold.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/tutor_response_card.dart';
 
@@ -184,37 +187,38 @@ class _TutorScreenState extends State<TutorScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildScaffold(TextTheme text) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Text('AI Tutor'),
-            Text(
-              widget.topic.title,
-              overflow: TextOverflow.ellipsis,
-              style: text.bodySmall?.copyWith(color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          PopupMenuButton<TutorLanguage>(
-            key: const ValueKey<String>('language-menu'),
-            tooltip: 'Jawab ki zubaan (answer language)',
-            icon: const Icon(Icons.translate_rounded),
-            initialValue: _language,
-            onSelected: (TutorLanguage value) =>
-                setState(() => _language = value),
-            itemBuilder: (_) => <PopupMenuEntry<TutorLanguage>>[
-              for (final TutorLanguage language in TutorLanguage.values)
-                PopupMenuItem<TutorLanguage>(
-                  value: language,
-                  child: Text(language.label),
-                ),
-            ],
+    return GlassScaffold(
+      titleWidget: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          GradientText(
+            'AI Tutor',
+            style: text.titleLarge.weight(FontWeight.w700),
+          ),
+          Text(
+            widget.topic.title,
+            overflow: TextOverflow.ellipsis,
+            style: text.bodySmall,
           ),
         ],
       ),
+      actions: <Widget>[
+        PopupMenuButton<TutorLanguage>(
+          key: const ValueKey<String>('language-menu'),
+          tooltip: 'Jawab ki zubaan (answer language)',
+          icon: const Icon(Icons.translate_rounded),
+          initialValue: _language,
+          onSelected: (TutorLanguage value) =>
+              setState(() => _language = value),
+          itemBuilder: (_) => <PopupMenuEntry<TutorLanguage>>[
+            for (final TutorLanguage language in TutorLanguage.values)
+              PopupMenuItem<TutorLanguage>(
+                value: language,
+                child: Text(language.label),
+              ),
+          ],
+        ),
+      ],
       body: Column(
         children: <Widget>[
           _ContextBanner(
@@ -258,11 +262,12 @@ class _ContextBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassCard(
       key: const ValueKey<String>('tutor-context'),
-      width: double.infinity,
-      color: AppColors.primary.withValues(alpha: 0.08),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      blur: false,
+      borderRadius: 14,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Text(
         'Unit ${unit.unitNumber}: ${unit.title} › ${topic.title} · ${language.label}',
         style: Theme.of(context).textTheme.bodySmall,
@@ -286,7 +291,7 @@ class _EmptyState extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: <Widget>[
-        const Icon(Icons.smart_toy_rounded, size: 64, color: AppColors.primary),
+        Icon(Icons.smart_toy_rounded, size: 64, color: context.palette.accent),
         const SizedBox(height: 12),
         Text(
           'Is topic ke bare mein koi bhi sawal poochein.\nJawab step-by-step milega.',
@@ -318,9 +323,13 @@ class _ExchangeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final Widget answer;
     if (exchange.loading) {
-      answer = const LoadingWidget(
-        key: ValueKey<String>('tutor-loading'),
-        message: 'MathMentor soch raha hai... (10–20 seconds lag sakte hain)',
+      answer = const GlassCard(
+        margin: EdgeInsets.fromLTRB(16, 6, 40, 6),
+        padding: EdgeInsets.zero,
+        child: LoadingWidget(
+          key: ValueKey<String>('tutor-loading'),
+          message: 'MathMentor soch raha hai... (10–20 seconds lag sakte hain)',
+        ),
       );
     } else if (exchange.error != null) {
       answer = Padding(
@@ -356,9 +365,9 @@ class _QuestionBubble extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.fromLTRB(56, 8, 16, 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: const BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          gradient: context.palette.accentGradient,
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(16),
             topRight: Radius.circular(16),
             bottomLeft: Radius.circular(16),
@@ -385,37 +394,63 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool canSend = !busy && controller.text.trim().isNotEmpty;
-    return SafeArea(
-      top: false,
-      child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: <Widget>[
-            Expanded(
-              child: TextField(
-                key: const ValueKey<String>('tutor-input'),
-                controller: controller,
-                minLines: 1,
-                maxLines: 4,
-                maxLength: ApiConfig.maxQuestionLength,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(hintText: AppStrings.askHint),
+    final GlassPalette p = context.palette;
+    return GlassBottomBar(
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  key: const ValueKey<String>('tutor-input'),
+                  controller: controller,
+                  minLines: 1,
+                  maxLines: 4,
+                  maxLength: ApiConfig.maxQuestionLength,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  decoration: const InputDecoration(
+                    hintText: AppStrings.askHint,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: IconButton.filled(
-                key: const ValueKey<String>('send-button'),
-                tooltip: 'Send',
-                onPressed: canSend ? onSend : null,
-                icon: const Icon(Icons.send_rounded),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: TapScale(
+                  enabled: canSend,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: canSend ? p.accentGradient : null,
+                      color: canSend ? null : p.glass,
+                      border: Border.all(color: p.glassBorder),
+                      boxShadow: canSend
+                          ? <BoxShadow>[
+                              BoxShadow(
+                                color: p.accent.withValues(alpha: 0.45),
+                                blurRadius: 14,
+                              ),
+                            ]
+                          : const <BoxShadow>[],
+                    ),
+                    child: IconButton(
+                      key: const ValueKey<String>('send-button'),
+                      tooltip: 'Send',
+                      color: Colors.white,
+                      disabledColor: p.textSecondary,
+                      onPressed: canSend ? onSend : null,
+                      icon: const Icon(Icons.send_rounded),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

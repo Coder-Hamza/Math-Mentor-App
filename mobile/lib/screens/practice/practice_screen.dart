@@ -8,7 +8,10 @@ import '../../models/practice_result.dart';
 import '../../services/api_exception.dart';
 import '../../services/practice_service.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glass_scaffold.dart';
 import '../../widgets/loading_widget.dart';
+import '../../widgets/motion.dart';
 import '../../widgets/practice_result_card.dart';
 import '../../widgets/topic_card.dart';
 
@@ -22,6 +25,7 @@ class PracticeScreen extends StatefulWidget {
     this.unitId,
     this.title = 'Practice',
     this.onHome,
+    this.inTab = false,
   });
 
   /// Practise one unit only (from the weak-topics list); null = all units.
@@ -30,6 +34,9 @@ class PracticeScreen extends StatefulWidget {
 
   /// What "Home" does on the summary; defaults to closing this screen.
   final VoidCallback? onHome;
+
+  /// Shown as a Home tab (the Home screen paints the background).
+  final bool inTab;
 
   @override
   State<PracticeScreen> createState() => _PracticeScreenState();
@@ -190,23 +197,19 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: <Widget>[
-          if (_results.isNotEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Text(
-                  '⭐ $_sessionPoints',
-                  key: const ValueKey<String>('session-points'),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
+    return GlassScaffold(
+      background: !widget.inTab,
+      title: widget.title,
+      actions: <Widget>[
+        if (_results.isNotEmpty)
+          Center(
+            child: GlassPill(
+              label: '⭐ $_sessionPoints',
+              color: context.palette.secondary,
+              textKey: const ValueKey<String>('session-points'),
             ),
-        ],
-      ),
+          ),
+      ],
       body: _buildBody(),
     );
   }
@@ -289,16 +292,19 @@ class _PracticeScreenState extends State<PracticeScreen> {
         if (!answered)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: FilledButton.icon(
+            child: GradientButton(
               key: const ValueKey<String>('submit-answer'),
               onPressed: _currentAnswer.isEmpty || _submitting ? null : _submit,
               icon: _submitting
                   ? const SizedBox.square(
                       dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.check_rounded),
-              label: Text(_submitting ? 'Check ho raha hai...' : 'Submit'),
+              child: Text(_submitting ? 'Check ho raha hai...' : 'Submit'),
             ),
           )
         else ...<Widget>[
@@ -306,13 +312,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
           PracticeResultCard(result: result),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: FilledButton.icon(
+            child: GradientButton(
               key: const ValueKey<String>('next-question'),
               onPressed: _next,
               icon: Icon(
                 isLast ? Icons.flag_rounded : Icons.arrow_forward_rounded,
               ),
-              label: Text(isLast ? 'Result dekhein' : 'Agla Sawaal'),
+              child: Text(isLast ? 'Result dekhein' : 'Agla Sawaal'),
             ),
           ),
         ],
@@ -331,7 +337,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 }
 
-/// Question number, difficulty, unit and the question itself.
+/// Question number (gradient badge), difficulty, unit and the question itself.
 class QuestionCard extends StatelessWidget {
   const QuestionCard({
     super.key,
@@ -347,33 +353,42 @@ class QuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
-    return Card(
-      key: const ValueKey<String>('question-card'),
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Appear(
+      child: GlassCard(
+        key: const ValueKey<String>('question-card'),
+        margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
-                Text(
-                  'Sawaal $number/$total',
-                  key: const ValueKey<String>('question-counter'),
-                  style: text.labelLarge.weight(
-                    FontWeight.w700,
-                    color: AppColors.primary,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: context.palette.accentGradient,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Sawaal $number/$total',
+                    key: const ValueKey<String>('question-counter'),
+                    style: text.labelLarge.weight(
+                      FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const Spacer(),
                 DifficultyBadge(difficulty: question.difficulty),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             Text(
               'Unit ${question.unitNumber}: ${question.unitTitle} · '
               '${question.topicTitle}',
-              style: text.bodySmall?.copyWith(color: AppColors.unverified),
+              style: text.bodySmall,
             ),
             const SizedBox(height: 12),
             Text(
@@ -389,7 +404,8 @@ class QuestionCard extends StatelessWidget {
 
 enum OptionState { open, correct, other }
 
-/// One MCQ choice. After grading, the right option turns green.
+/// One MCQ choice as a glass button. Selected: accent border with a glow. After
+/// grading the right option turns green and a wrong pick red (animated, 250 ms).
 class McqOptionButton extends StatelessWidget {
   const McqOptionButton({
     super.key,
@@ -406,48 +422,80 @@ class McqOptionButton extends StatelessWidget {
   final OptionState state;
   final VoidCallback? onTap;
 
+  static const Duration transition = Duration(milliseconds: 250);
+
   @override
   Widget build(BuildContext context) {
+    final GlassPalette p = context.palette;
     final Color color = switch (state) {
-      OptionState.correct => AppColors.verified,
-      OptionState.other when selected => AppColors.failed,
-      _ when selected => AppColors.primary,
-      _ => AppColors.unverified,
+      OptionState.correct => p.success,
+      OptionState.other when selected => p.error,
+      _ when selected => p.accent,
+      _ => p.textSecondary,
     };
     final bool highlighted = selected || state == OptionState.correct;
+    final BorderRadius radius = BorderRadius.circular(16);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Material(
-        color: highlighted ? color.withValues(alpha: 0.1) : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: color, width: highlighted ? 2 : 1),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: <Widget>[
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: color,
-                  child: Text(
-                    letter,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      child: TapScale(
+        enabled: onTap != null,
+        child: AnimatedContainer(
+          duration: transition,
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: highlighted
+                ? Color.alphaBlend(color.withValues(alpha: 0.14), p.glass)
+                : p.glass,
+            borderRadius: radius,
+            border: Border.all(
+              color: highlighted ? color : p.glassBorder,
+              width: highlighted ? 2 : 1,
+            ),
+            boxShadow: highlighted
+                ? <BoxShadow>[
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.35),
+                      blurRadius: 16,
                     ),
-                  ),
+                  ]
+                : const <BoxShadow>[],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: radius,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: <Widget>[
+                    AnimatedContainer(
+                      duration: transition,
+                      width: 30,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: highlighted ? color : Colors.transparent,
+                        border: Border.all(color: color),
+                      ),
+                      child: Text(
+                        letter,
+                        style: TextStyle(
+                          color: highlighted ? Colors.white : color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(text)),
+                    if (state == OptionState.correct)
+                      Icon(Icons.check_circle, color: p.success)
+                    else if (state == OptionState.other && selected)
+                      Icon(Icons.cancel, color: p.error),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(text)),
-                if (state == OptionState.correct)
-                  const Icon(Icons.check_circle, color: AppColors.verified)
-                else if (state == OptionState.other && selected)
-                  const Icon(Icons.cancel, color: AppColors.failed),
-              ],
+              ),
             ),
           ),
         ),
@@ -490,16 +538,16 @@ class PracticeSummary extends StatelessWidget {
           style: const TextStyle(fontSize: 56),
         ),
         const SizedBox(height: 8),
-        Text(
+        GradientText(
           'Session mukammal!',
           textAlign: TextAlign.center,
-          style: text.headlineSmall.weight(FontWeight.w700),
+          style: text.headlineSmall,
         ),
         const SizedBox(height: 24),
-        Card(
+        GlassCard(
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.zero,
             child: Column(
               children: <Widget>[
                 _SummaryRow(
@@ -522,11 +570,11 @@ class PracticeSummary extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        FilledButton.icon(
+        GradientButton(
           key: const ValueKey<String>('play-again'),
           onPressed: onPlayAgain,
           icon: const Icon(Icons.replay_rounded),
-          label: const Text('Dobara Khelo'),
+          child: const Text('Dobara Khelo'),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
@@ -577,10 +625,10 @@ class _EmptyPractice extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(
+            Icon(
               Icons.inbox_outlined,
               size: 56,
-              color: AppColors.unverified,
+              color: context.palette.textSecondary,
             ),
             const SizedBox(height: 12),
             const Text(

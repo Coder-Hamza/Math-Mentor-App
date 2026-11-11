@@ -8,6 +8,8 @@ import '../../models/progress.dart';
 import '../../services/api_exception.dart';
 import '../../services/progress_service.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glass_scaffold.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/progress_widgets.dart';
 
@@ -83,8 +85,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Meri Progress')),
+    return GlassScaffold(
+      background: false,
+      title: 'Meri Progress',
       body: _buildBody(),
     );
   }
@@ -111,19 +114,24 @@ class _ProgressScreenState extends State<ProgressScreen> {
               child: ErrorView(error: _error!, compact: true, onRetry: _load),
             ),
           if (_loading)
-            const LinearProgressIndicator(
-              key: ValueKey<String>('progress-refreshing'),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: ShimmerBar(
+                key: ValueKey<String>('progress-refreshing'),
+                width: double.infinity,
+                height: 4,
+              ),
             ),
           if (summary.totalAttempted == 0)
             _EmptyProgress(onPractice: _practiseAll),
           StatsCard(summary: summary),
-          _SectionTitle('Unit progress', style: text),
+          const SectionHeader('Unit progress', icon: Icons.insights_rounded),
           for (final UnitProgress unit in summary.units)
             UnitProgressRow(
               key: ValueKey<String>('unit-progress-${unit.unitId}'),
               progress: unit,
             ),
-          _SectionTitle('Weak topics', style: text),
+          const SectionHeader('Weak topics', icon: Icons.warning_amber_rounded),
           if (_weakTopics.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -132,7 +140,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     ? 'Practice shuru karein, phir yahan aap ke kamzor topics nazar aayenge.'
                     : AppStrings.noWeakTopics,
                 key: const ValueKey<String>('no-weak-topics'),
-                style: text.bodyMedium?.copyWith(color: AppColors.unverified),
+                style: text.bodyMedium?.copyWith(
+                  color: context.palette.textSecondary,
+                ),
               ),
             )
           else
@@ -156,11 +166,11 @@ class _EmptyProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return GlassCard(
       key: const ValueKey<String>('empty-progress'),
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.zero,
         child: Column(
           children: <Widget>[
             Text(
@@ -169,30 +179,15 @@ class _EmptyProgress extends StatelessWidget {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
+            GradientButton(
               key: const ValueKey<String>('start-practice'),
               onPressed: onPractice,
               icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Practice shuru karein'),
+              child: const Text('Practice shuru karein'),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title, {required this.style});
-
-  final String title;
-  final TextTheme style;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-      child: Text(title, style: style.titleMedium.weight(FontWeight.w700)),
     );
   }
 }

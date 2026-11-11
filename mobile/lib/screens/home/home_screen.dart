@@ -7,6 +7,8 @@ import '../../models/unit.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/units_provider.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glass_scaffold.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/unit_card.dart';
 import '../practice/practice_screen.dart';
@@ -59,13 +61,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildScaffold() {
-    return Scaffold(
+    final GlassPalette p = context.palette;
+    return GlassScaffold(
+      showAppBar: false,
       body: IndexedStack(
         index: _tab,
         children: <Widget>[
           const UnitsTab(),
           if (_opened.contains(HomeScreen.practiceTab))
-            PracticeScreen(onHome: () => _select(HomeScreen.unitsTab))
+            PracticeScreen(
+              inTab: true,
+              onHome: () => _select(HomeScreen.unitsTab),
+            )
           else
             const SizedBox.shrink(),
           if (_opened.contains(HomeScreen.progressTab))
@@ -74,25 +81,31 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox.shrink(),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        key: const ValueKey<String>('bottom-nav'),
-        currentIndex: _tab,
-        onTap: _select,
-        selectedItemColor: AppColors.primary,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book_rounded),
-            label: 'Units',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.edit_note_rounded),
-            label: 'Practice',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart_rounded),
-            label: 'Progress',
-          ),
-        ],
+      bottomNavigationBar: GlassBottomBar(
+        child: BottomNavigationBar(
+          key: const ValueKey<String>('bottom-nav'),
+          currentIndex: _tab,
+          onTap: _select,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: p.accent,
+          unselectedItemColor: p.textSecondary,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_book_rounded),
+              label: 'Units',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.edit_note_rounded),
+              label: 'Practice',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_rounded),
+              label: 'Progress',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -192,18 +205,20 @@ class _UnitsTabState extends State<UnitsTab> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.appName),
-        actions: <Widget>[
-          IconButton(
-            key: const ValueKey<String>('logout-button'),
-            tooltip: 'Logout',
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: _confirmLogout,
-          ),
-        ],
+    return GlassScaffold(
+      background: false,
+      titleWidget: GradientText(
+        AppStrings.appName,
+        style: Theme.of(context).textTheme.titleLarge.weight(FontWeight.w700),
       ),
+      actions: <Widget>[
+        IconButton(
+          key: const ValueKey<String>('logout-button'),
+          tooltip: 'Logout',
+          icon: const Icon(Icons.logout_rounded),
+          onPressed: _confirmLogout,
+        ),
+      ],
       body: body,
     );
   }
@@ -228,7 +243,9 @@ class _Greeting extends StatelessWidget {
           ),
           Text(
             'Aaj kaunsa unit parhenge? (${AppStrings.tagline})',
-            style: text.bodyMedium?.copyWith(color: AppColors.unverified),
+            style: text.bodyMedium?.copyWith(
+              color: context.palette.textSecondary,
+            ),
           ),
         ],
       ),

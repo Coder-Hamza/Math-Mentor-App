@@ -63,7 +63,7 @@ math-mentor-ai/
 │   │   ├── integration/ # 88 tests
 │   │   └── api/         # 127 tests
 │   └── alembic/
-├── mobile/test/         # 137 Flutter tests (98.3% line coverage)
+├── mobile/test/         # 168 Flutter tests (98.8% line coverage)
 ├── syllabus/
 │   ├── chapters/units.json        # 12 units
 │   ├── topics/topics.json         # 52 topics
@@ -211,8 +211,38 @@ Unit 12: Graphs of Trig & Inverse Trig + Trig Equations (pg 337)
 - Tests: backend 842, 100% coverage (unchanged); Flutter 137, 98.3% line coverage
 - All 7 gates: PASS
 
+### UI Upgrade — Glassmorphism + Dark/Light Mode ✅ COMPLETE (awaiting approval)
+- Mobile only; backend untouched. AppColors REMOVED: every colour comes from
+  `GlassPalette` (ThemeExtension in core/theme.dart, read with `context.palette`;
+  dark = default, light). Theme switch lerps over 400 ms (themeAnimationDuration).
+- ThemeProvider (providers/theme_provider.dart): isDarkMode (default true),
+  toggleTheme(), saved in SharedPreferences 'isDarkMode' via StorageService;
+  survives logout (clearUserData does not touch it). ThemeToggleButton
+  (key 'theme-toggle') sits in every app bar via GlassScaffold.
+- Widgets: glass_card.dart (GlassCard, GlassPill, GradientText, GradientButton,
+  GradientCircle, TapScale 0.95/100 ms, SectionHeader), gradient_background.dart
+  (gradient + 3 radial-gradient "orbs", 1.2 s entry then idle, owns BackdropGroup),
+  glass_scaffold.dart (GlassScaffold, ThemeToggleButton, GlassBottomBar),
+  motion.dart (Appear: 200 ms fade+slide), LoadingWidget = ShimmerBar.
+- Performance rules: blur = BackdropFilter.grouped (shared backdrop per screen);
+  list cards pass blur: false; NO blur and NO ambient motion when
+  MediaQuery.disableAnimations (OS "remove animations") = low-end fallback;
+  background never animates while idle. Shadows use BlurStyle.outer (normal
+  shadows grey the translucent glass).
+- Home paints ONE background for all tabs: tab screens use
+  GlassScaffold(background: false); PracticeScreen(inTab: true) from Home.
+- Page transitions: FadePageTransitionsBuilder (300 ms) on all platforms.
+- Packages: +flutter_animate ^4.5.2 (splash title only — it schedules a
+  Future.delayed per widget, so list animations use Appear instead);
+  -loading_animation_widget.
+- Tests: Flutter 168 (+31: test/screens/theme_test.dart), 98.8% line coverage;
+  backend 842, 100% (unchanged). All 7 gates: PASS.
+- Screenshots can be rendered from widget tests (load Poppins + MaterialIcons
+  with FontLoader, capture the root layer with physical size); emoji show as
+  boxes in the test renderer only.
+
 ## Current Phase
-### None — PROJECT COMPLETE (v1.0). Any further work needs explicit user approval.
+### None — v1.0 complete + UI upgrade done. Any further work needs explicit user approval.
 
 ## Phase 2 Tasks (done)
 1. JWT authentication (login, register, token refresh)

@@ -6,6 +6,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:mathmentor/core/constants.dart';
+import 'package:mathmentor/core/theme.dart';
 import 'package:mathmentor/models/topic.dart';
 import 'package:mathmentor/models/unit.dart';
 import 'package:mathmentor/screens/tutor/tutor_screen.dart';
@@ -177,7 +178,7 @@ void main() {
     );
     expect(
       (box.decoration! as BoxDecoration).color,
-      AppColors.warningBackground,
+      WarningBox.backgroundFor(GlassPalette.dark),
     );
   });
 

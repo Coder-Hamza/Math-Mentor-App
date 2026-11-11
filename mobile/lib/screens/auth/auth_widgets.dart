@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants.dart';
-import '../splash_screen.dart';
 import '../../core/theme.dart';
+import '../../widgets/glass_card.dart';
+import '../splash_screen.dart';
 
 /// "MathMentor AI" header shared by the login and register screens.
 class AuthHeader extends StatelessWidget {
@@ -17,14 +18,14 @@ class AuthHeader extends StatelessWidget {
       children: <Widget>[
         const AppLogo(),
         const SizedBox(height: 12),
+        GradientText(AppStrings.appName, style: text.headlineSmall),
         Text(
-          AppStrings.appName,
-          style: text.headlineSmall.weight(
-            FontWeight.w700,
-            color: AppColors.primary,
+          subtitle,
+          textAlign: TextAlign.center,
+          style: text.bodyMedium?.copyWith(
+            color: context.palette.textSecondary,
           ),
         ),
-        Text(subtitle, textAlign: TextAlign.center, style: text.bodyMedium),
         const SizedBox(height: 28),
       ],
     );
@@ -39,18 +40,18 @@ class FormErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final Color error = context.palette.error;
+    return GlassCard(
       key: const ValueKey<String>('form-error'),
-      width: double.infinity,
+      blur: false,
+      tint: error,
+      borderColor: error.withValues(alpha: 0.6),
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.errorBackground,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      borderRadius: 16,
       child: Row(
         children: <Widget>[
-          const Icon(Icons.error_outline_rounded, color: AppColors.failed),
+          Icon(Icons.error_outline_rounded, color: error),
           const SizedBox(width: 8),
           Expanded(child: Text(message)),
         ],
@@ -59,7 +60,7 @@ class FormErrorBox extends StatelessWidget {
   }
 }
 
-/// Primary button that shows a spinner and disables itself while [busy].
+/// Gradient primary button that shows a spinner and disables itself while [busy].
 class SubmitButton extends StatelessWidget {
   const SubmitButton({
     super.key,
@@ -74,13 +75,16 @@ class SubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilledButton(
+    return GradientButton(
       onPressed: busy ? null : onPressed,
       child: busy
           ? const SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Colors.white,
+              ),
             )
           : Text(label),
     );

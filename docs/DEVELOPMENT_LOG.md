@@ -744,3 +744,71 @@ matters for Windows desktop builds.
 - The caches are in memory only, so there is no offline mode across app restarts.
 
 **PROJECT COMPLETE: MathMentor AI v1.0.**
+
+## UI upgrade: Glassmorphism + dark/light mode (2026-11-12)
+
+This was a mobile-only redesign. The backend was not touched, and every existing
+feature still works.
+
+### Design system
+- `GlassPalette` is a `ThemeExtension` holding the two palettes from the spec:
+  - **Dark (the default):** `#0A0E21` → `#1A1F3A`, glass white 8%, border white 15%,
+    accent `#4FC3F7`, amber `#FFB74D`, success `#69F0AE`, error `#FF5252`.
+  - **Light:** `#F0F4FF` → `#E8F0FE`, glass white 60%, border white 80%, accent
+    `#1565C0`, amber `#F57C00`, success `#2E7D32`, error `#C62828`.
+  - Because it lerps, the 400 ms theme switch animates every glass colour.
+- The old fixed `AppColors` class was removed so no screen can keep a colour that is
+  wrong in one of the two modes.
+- Typography uses Poppins throughout: heading Bold 24 / -0.5, subheading SemiBold 18,
+  body 14 / 1.5, caption 12 at 70%. Headings use `GradientText`, a `ShaderMask`.
+- Screens fade into each other (300 ms). Cards fade and slide in (200 ms). Buttons
+  shrink to 95% while pressed (100 ms). MCQ colours change over 250 ms.
+
+### Widgets
+- `GlassCard` replaces every `Card`. It has a gradient hairline border, an outer-only
+  shadow, an optional tint or glow, and an optional blur.
+- `GradientBackground` paints the gradient plus three orbs, and provides the
+  `BackdropGroup`.
+- `GlassScaffold` gives every screen a transparent app bar with the theme toggle.
+- `GlassBottomBar` is the frosted bottom navigation and tutor input bar.
+- `ShimmerBar` is the loader.
+- Also added: `GradientButton`, `GlassPill`, `GradientCircle`, `SectionHeader`,
+  `Appear` and `TapScale`.
+
+### Performance on low-end phones
+- The blur uses `BackdropFilter.grouped`, so all glass surfaces on a screen share one
+  backdrop read.
+- The 12 unit cards and other list cards skip the blur; their fill alone reads as
+  glass over the already-soft background.
+- The orbs are radial gradients, not real blurs. They drift in once over 1.2 s, and
+  then the screen is static, with no repainting while idle.
+- When Android's "Remove animations" setting is on, there is no blur and no motion.
+  This is the low-end fallback.
+
+### Problems found along the way
+- **ListTile ripples hidden:** a test caught that a `ListTile` inside a glass card
+  would draw its ripples under the fill. `GlassCard` now provides a transparent
+  `Material`.
+- **flutter_animate timers:** flutter_animate schedules a `Future.delayed` for every
+  widget. Card entrance animations therefore use a small `AnimationController`
+  instead (`Appear`). flutter_animate is kept for the splash title.
+- **Grey light-mode cards:** in light mode a normal shadow showed through the
+  translucent glass and turned the cards grey. Fixed with `BlurStyle.outer`.
+
+### Tests
+- **Flutter:** 168 passing (+31, in `test/screens/theme_test.dart`), 98.8% line coverage.
+  The new tests cover:
+  - `ThemeProvider` toggling and saving, and the saved setting surviving logout.
+  - The toggle on every screen, and the 400 ms colour transition.
+  - The fade page transition.
+  - The splash animation, and that it stops with reduced motion.
+  - Blur present, and blur skipped by the fallback.
+  - The appear, press-scale and shimmer animations.
+  - The palette values from the spec, and the type scale.
+- **Updated existing tests:** palette colours instead of `AppColors`; the new stat
+  tiles; `+N pts`; and the gradient progress bar.
+- **Backend:** 842 passing, 100% coverage (unchanged).
+
+### Quality gates
+All 7 PASS: ruff format, ruff check, mypy, pytest (842), coverage (100%),
+flutter analyze, and flutter test (168).

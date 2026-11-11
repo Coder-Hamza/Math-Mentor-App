@@ -23,7 +23,15 @@ final Finder correctAnswerText = find.byKey(
 Finder option(int i) => find.byKey(ValueKey<String>('option-$i'));
 
 bool submitEnabled(WidgetTester tester) =>
-    tester.widget<ButtonStyleButton>(submitButton).onPressed != null;
+    tester
+        .widget<ButtonStyleButton>(
+          find.descendant(
+            of: submitButton,
+            matching: find.bySubtype<ButtonStyleButton>(),
+          ),
+        )
+        .onPressed !=
+    null;
 
 Map<String, dynamic> lastSubmit(FakeBackend backend) =>
     jsonDecode(backend.calls('POST', '/practice/submit').last.body)
@@ -126,7 +134,7 @@ void main() {
     expect(find.text('Sahi jawab!'), findsOneWidget);
     expect(tester.widget<Text>(correctAnswerText).data, '5');
     expect(find.text('ad - bc = 8 - 3 = 5.'), findsOneWidget);
-    expect(find.text('+15 points'), findsOneWidget);
+    expect(find.text('+15 pts'), findsOneWidget);
     expect(find.text('Bilkul sahi! Bohat acha! ✅'), findsOneWidget);
     expect(submitButton, findsNothing);
     expect(find.text('Agla Sawaal'), findsOneWidget);
@@ -160,7 +168,7 @@ void main() {
       tester.widget<McqOptionButton>(option(0)).state,
       OptionState.correct,
     );
-    expect(find.text('+0 points'), findsOneWidget);
+    expect(find.text('+0 pts'), findsOneWidget);
   });
 
   testWidgets('short answer uses a text field', (WidgetTester tester) async {

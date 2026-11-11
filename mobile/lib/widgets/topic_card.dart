@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../core/constants.dart';
-import '../models/topic.dart';
 import '../core/theme.dart';
+import '../models/topic.dart';
+import 'glass_card.dart';
+import 'motion.dart';
 
 class TopicCard extends StatelessWidget {
   const TopicCard({super.key, required this.topic, this.onTap});
@@ -13,12 +14,13 @@ class TopicCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
+    return Appear(
+      child: TapScale(
+        enabled: onTap != null,
+        child: GlassCard(
+          blur: false,
           padding: const EdgeInsets.all(14),
+          onTap: onTap,
           child: Row(
             children: <Widget>[
               Expanded(
@@ -43,6 +45,11 @@ class TopicCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               DifficultyBadge(difficulty: topic.difficulty),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: context.palette.textSecondary,
+              ),
             ],
           ),
         ),
@@ -51,33 +58,24 @@ class TopicCard extends StatelessWidget {
   }
 }
 
-/// Colour-coded difficulty pill: easy = green, medium = orange, hard = red.
+/// Glass difficulty chip: easy = green, medium = amber, hard = red.
 class DifficultyBadge extends StatelessWidget {
   const DifficultyBadge({super.key, required this.difficulty});
 
   final Difficulty difficulty;
 
-  static Color colorFor(Difficulty difficulty) => switch (difficulty) {
-    Difficulty.easy => AppColors.easy,
-    Difficulty.medium => AppColors.medium,
-    Difficulty.hard => AppColors.hard,
-  };
+  static Color colorFor(Difficulty difficulty, GlassPalette p) =>
+      switch (difficulty) {
+        Difficulty.easy => p.success,
+        Difficulty.medium => p.secondary,
+        Difficulty.hard => p.error,
+      };
 
   @override
   Widget build(BuildContext context) {
-    final Color color = colorFor(difficulty);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color),
-      ),
-      child: Text(
-        difficulty.label,
-        style: Theme.of(context).textTheme.labelSmall
-            .weight(FontWeight.w600, color: color),
-      ),
+    return GlassPill(
+      label: difficulty.label,
+      color: colorFor(difficulty, context.palette),
     );
   }
 }

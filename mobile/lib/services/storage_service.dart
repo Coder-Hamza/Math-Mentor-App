@@ -2,7 +2,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
 
-/// Thin wrapper over SharedPreferences: JWTs and per-topic recent questions.
+/// Thin wrapper over SharedPreferences: JWTs, per-topic recent questions and the
+/// theme preference.
 class StorageService {
   StorageService(this._prefs);
 
@@ -12,6 +13,7 @@ class StorageService {
   static const String _accessKey = 'access_token';
   static const String _refreshKey = 'refresh_token';
   static const String _recentPrefix = 'recent_questions_';
+  static const String _darkModeKey = 'isDarkMode';
   static const int maxRecentQuestions = 5;
 
   final SharedPreferences _prefs;
@@ -29,6 +31,12 @@ class StorageService {
     await _prefs.remove(_accessKey);
     await _prefs.remove(_refreshKey);
   }
+
+  /// Theme preference (`isDarkMode`); null until the student first toggles it.
+  /// Not removed by [clearUserData]: it's a device setting, not student data.
+  bool? get isDarkMode => _prefs.getBool(_darkModeKey);
+
+  Future<void> saveDarkMode(bool value) => _prefs.setBool(_darkModeKey, value);
 
   /// Most recent first, without duplicates.
   List<String> recentQuestions(int topicId) =>

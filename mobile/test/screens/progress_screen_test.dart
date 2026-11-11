@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mathmentor/core/constants.dart';
+import 'package:mathmentor/core/theme.dart';
 import 'package:mathmentor/screens/practice/practice_screen.dart';
 import 'package:mathmentor/screens/progress/progress_screen.dart';
+import 'package:mathmentor/widgets/glass_card.dart';
 import 'package:mathmentor/widgets/progress_widgets.dart';
 
 import '../helpers.dart';
@@ -21,22 +23,23 @@ Future<FakeBackend> openProgress(
   return backend;
 }
 
-Text statText(WidgetTester tester, String key) => tester.widget<Text>(
-  find
-      .descendant(
-        of: find.byKey(ValueKey<String>(key)),
-        matching: find.byType(Text),
-      )
-      .first,
-);
+String statText(WidgetTester tester, String key) =>
+    tester.widget<GradientText>(find.byKey(ValueKey<String>(key))).text;
 
-LinearProgressIndicator bar(WidgetTester tester, int unitId) =>
-    tester.widget<LinearProgressIndicator>(
+GradientProgressBar bar(WidgetTester tester, int unitId) =>
+    tester.widget<GradientProgressBar>(
       find.descendant(
         of: find.byKey(ValueKey<String>('unit-progress-$unitId')),
-        matching: find.byType(LinearProgressIndicator),
+        matching: find.byType(GradientProgressBar),
       ),
     );
+
+Color percentColor(WidgetTester tester, String percent) =>
+    tester.widget<Text>(find.text(percent)).style!.color!;
+
+const GlassPalette dark = GlassPalette.dark;
+
+final Finder progressList = find.byKey(const ValueKey<String>('progress-list'));
 
 void main() {
   testWidgets('stats card shows points, accuracy, streak and attempts', (
@@ -44,15 +47,27 @@ void main() {
   ) async {
     await openProgress(tester);
     expect(find.byType(StatsCard), findsOneWidget);
-    expect(statText(tester, 'stat-points').data, '🏆 245');
-    expect(statText(tester, 'stat-accuracy').data, '66.7%');
-    expect(statText(tester, 'stat-streak').data, '🔥 4');
-    expect(statText(tester, 'stat-attempted').data, '18');
+    expect(statText(tester, 'stat-points'), '245');
+    expect(statText(tester, 'stat-accuracy'), '66.7%');
+    expect(statText(tester, 'stat-streak'), '4');
+    expect(statText(tester, 'stat-attempted'), '18');
+    // 2 x 2 grid of glass tiles, each with its emoji.
+    expect(
+      find.descendant(
+        of: find.byType(StatsCard),
+        matching: find.byType(GlassCard),
+      ),
+      findsNWidgets(4),
+    );
     for (final String label in <String>[
-      'Total Points',
+      'Points',
       'Accuracy',
-      'Current Streak',
-      'Questions Attempted',
+      'Streak',
+      'Attempted',
+      '🏆',
+      '📊',
+      '🔥',
+      '📝',
     ]) {
       expect(find.text(label), findsOneWidget);
     }
@@ -70,11 +85,11 @@ void main() {
     expect(find.text('3/3 topics practised'), findsOneWidget);
 
     expect(bar(tester, 1).value, 0.25);
-    expect(bar(tester, 1).color, AppColors.hard); // red < 40
+    expect(percentColor(tester, '25%'), dark.error); // red < 40
     expect(bar(tester, 2).value, closeTo(0.555, 1e-9));
-    expect(bar(tester, 2).color, AppColors.medium); // orange 40-70
+    expect(percentColor(tester, '55.5%'), dark.secondary); // amber 40-70
     expect(bar(tester, 3).value, 1.0);
-    expect(bar(tester, 3).color, AppColors.easy); // green > 70
+    expect(percentColor(tester, '100%'), dark.success); // green > 70
   });
 
   testWidgets('weak topics are highlighted with a practice button', (
@@ -91,9 +106,11 @@ void main() {
     expect(find.textContaining('33.3% (1/3 sahi)'), findsOneWidget);
     expect(
       tester
-          .widget<Card>(find.descendant(of: card, matching: find.byType(Card)))
-          .color,
-      AppColors.errorBackground,
+          .widget<GlassCard>(
+            find.descendant(of: card, matching: find.byType(GlassCard)),
+          )
+          .tint,
+      dark.error,
     );
 
     await tester.tap(find.text('Practice karein'));
@@ -142,8 +159,8 @@ void main() {
       ),
       weak: <Map<String, Object?>>[],
     );
-    expect(statText(tester, 'stat-points').data, '🏆 0');
-    expect(statText(tester, 'stat-accuracy').data, '0%');
+    expect(statText(tester, 'stat-points'), '0');
+    expect(statText(tester, 'stat-accuracy'), '0%');
     expect(
       find.text('Abhi koi sawaal hall nahi kiya, practice shuru karein! 📚'),
       findsOneWidget,
@@ -167,12 +184,12 @@ void main() {
     expect(backend.calls('GET', '/progress/'), hasLength(1));
     backend.on('GET', '/progress/', progressJson(points: 300));
 
-    await tester.fling(find.byType(StatsCard), const Offset(0, 400), 1000);
+    await tester.fling(progressList, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
 
     expect(backend.calls('GET', '/progress/'), hasLength(2));
     expect(backend.calls('GET', '/progress/weak-topics'), hasLength(2));
-    expect(statText(tester, 'stat-points').data, '🏆 300');
+    expect(statText(tester, 'stat-points'), '300');
   });
 
   testWidgets('error shows retry, and a failed refresh keeps the data', (
@@ -200,7 +217,7 @@ void main() {
     expect(find.byType(StatsCard), findsOneWidget);
 
     backend.onError('GET', '/progress/weak-topics', 500, 'boom');
-    await tester.fling(find.byType(StatsCard), const Offset(0, 400), 1000);
+    await tester.fling(progressList, const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
     expect(find.byType(StatsCard), findsOneWidget); // stale data stays
     expect(find.textContaining('Server mein masla'), findsOneWidget);
@@ -208,12 +225,15 @@ void main() {
 
   group('helpers', () {
     test('progressColor thresholds', () {
-      expect(progressColor(0), AppColors.hard);
-      expect(progressColor(39.9), AppColors.hard);
-      expect(progressColor(40), AppColors.medium);
-      expect(progressColor(70), AppColors.medium);
-      expect(progressColor(70.1), AppColors.easy);
-      expect(progressColor(100), AppColors.easy);
+      expect(progressColor(0, dark), dark.error);
+      expect(progressColor(39.9, dark), dark.error);
+      expect(progressColor(40, dark), dark.secondary);
+      expect(progressColor(70, dark), dark.secondary);
+      expect(progressColor(70.1, dark), dark.success);
+      expect(
+        progressColor(100, GlassPalette.light),
+        GlassPalette.light.success,
+      );
     });
 
     test('formatPercent drops a trailing .0', () {

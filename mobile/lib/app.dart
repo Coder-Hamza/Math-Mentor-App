@@ -7,6 +7,7 @@ import 'core/constants.dart';
 import 'core/routes.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
+import 'providers/theme_provider.dart';
 import 'providers/units_provider.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
@@ -67,6 +68,9 @@ class _MathMentorAppState extends State<MathMentorApp> {
     _api,
   );
   late final UnitsProvider _units = UnitsProvider(_api);
+  late final ThemeProvider _theme = ThemeProvider(widget.storage);
+  final ThemeData _lightTheme = buildLightTheme();
+  final ThemeData _darkTheme = buildDarkTheme();
   late final PracticeService _practice = PracticeService(_api);
   late final ProgressService _progress = ProgressService(_api);
   AuthStatus _lastStatus = AuthStatus.unknown;
@@ -97,6 +101,7 @@ class _MathMentorAppState extends State<MathMentorApp> {
       ..removeListener(_onAuthChanged)
       ..dispose();
     _units.dispose();
+    _theme.dispose();
     super.dispose();
   }
 
@@ -110,17 +115,25 @@ class _MathMentorAppState extends State<MathMentorApp> {
         Provider<ProgressService>.value(value: _progress),
         ChangeNotifierProvider<AuthProvider>.value(value: _auth),
         ChangeNotifierProvider<UnitsProvider>.value(value: _units),
+        ChangeNotifierProvider<ThemeProvider>.value(value: _theme),
       ],
-      child: MaterialApp(
-        title: AppStrings.appName,
-        navigatorKey: _navigatorKey,
-        debugShowCheckedModeBanner: false,
-        theme: buildAppTheme(),
-        home: widget.home,
-        initialRoute: widget.home == null ? Routes.splash : null,
-        onGenerateRoute: onGenerateRoute,
-        builder: (BuildContext context, Widget? child) =>
-            DismissKeyboard(child: child ?? const SizedBox.shrink()),
+      child: ListenableBuilder(
+        listenable: _theme,
+        builder: (BuildContext context, _) => MaterialApp(
+          title: AppStrings.appName,
+          navigatorKey: _navigatorKey,
+          debugShowCheckedModeBanner: false,
+          theme: _lightTheme,
+          darkTheme: _darkTheme,
+          themeMode: _theme.themeMode,
+          themeAnimationDuration: themeSwitchDuration,
+          themeAnimationCurve: Curves.easeInOut,
+          home: widget.home,
+          initialRoute: widget.home == null ? Routes.splash : null,
+          onGenerateRoute: onGenerateRoute,
+          builder: (BuildContext context, Widget? child) =>
+              DismissKeyboard(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }

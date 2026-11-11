@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants.dart';
+import '../core/theme.dart';
 import '../services/api_exception.dart';
+import 'glass_card.dart';
 
 /// Friendly error with an icon and (when it makes sense) a retry button.
 class ErrorView extends StatelessWidget {
@@ -27,6 +29,7 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final GlassPalette p = context.palette;
     final Widget retry = onRetry != null && error.isRetryable
         ? Padding(
             padding: EdgeInsets.only(top: compact ? 8 : 16),
@@ -39,19 +42,20 @@ class ErrorView extends StatelessWidget {
         : const SizedBox.shrink();
 
     if (compact) {
-      return Container(
-        width: double.infinity,
+      return GlassCard(
+        key: const ValueKey<String>('error-compact'),
+        blur: false,
+        tint: p.error,
+        borderColor: p.error.withValues(alpha: 0.6),
+        margin: EdgeInsets.zero,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.errorBackground,
-          borderRadius: BorderRadius.circular(12),
-        ),
+        borderRadius: 16,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
               children: <Widget>[
-                Icon(_icon, color: AppColors.failed),
+                Icon(_icon, color: p.error),
                 const SizedBox(width: 8),
                 Expanded(child: Text(error.userMessage)),
               ],
@@ -67,7 +71,7 @@ class ErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(_icon, size: 56, color: AppColors.unverified),
+            Icon(_icon, size: 56, color: p.textSecondary),
             const SizedBox(height: 12),
             Text(
               error.userMessage,

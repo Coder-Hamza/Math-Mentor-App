@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants.dart';
 import '../../core/routes.dart';
 import '../../models/formula.dart';
 import '../../models/topic.dart';
@@ -9,10 +8,11 @@ import '../../models/unit.dart';
 import '../../providers/units_provider.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glass_scaffold.dart';
 import '../../widgets/formula_card.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/topic_card.dart';
-import '../../core/theme.dart';
 
 /// Topic overview: formulas, the "Ask AI Tutor" button, and recent questions.
 class TopicDetailScreen extends StatefulWidget {
@@ -58,35 +58,31 @@ class _TopicDetailScreenState extends State<TopicDetailScreen> {
       widget.topic.id,
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.topic.title, overflow: TextOverflow.ellipsis),
-      ),
+    return GlassScaffold(
+      title: widget.topic.title,
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: <Widget>[
           _TopicHeader(topic: widget.topic, unit: widget.unit),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: FilledButton.icon(
+            child: GradientButton(
               key: const ValueKey<String>('ask-ai-button'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.secondary,
-                foregroundColor: Colors.black87,
-              ),
               onPressed: _openTutor,
               icon: const Icon(Icons.smart_toy_rounded),
-              label: const Text('Ask AI Tutor'),
+              child: const Text('Ask AI Tutor'),
             ),
           ),
-          const _SectionTitle(title: 'Formulas', icon: Icons.functions_rounded),
+          const SectionHeader('Formulas', icon: Icons.functions_rounded),
           ..._formulaSection(formulas, provider),
           if (recent.isNotEmpty) ...<Widget>[
-            const _SectionTitle(
-              title: 'Recent questions',
+            const SectionHeader(
+              'Recent questions',
               icon: Icons.history_rounded,
             ),
-            Card(
+            GlassCard(
+              key: const ValueKey<String>('recent-questions'),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Column(
                 children: <Widget>[
                   for (final String question in recent)
@@ -153,71 +149,30 @@ class _TopicHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+    return GlassCard(
+      key: const ValueKey<String>('topic-header'),
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             'Unit ${unit.unitNumber} · ${unit.title}',
-            style: text.bodySmall?.copyWith(color: Colors.white70),
+            style: text.bodySmall,
           ),
           const SizedBox(height: 4),
           Row(
             children: <Widget>[
               Expanded(
-                child: Text(
-                  topic.title,
-                  style: text.titleLarge.weight(
-                    FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
+                child: GradientText(topic.title, style: text.titleLarge),
               ),
               const SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: DifficultyBadge(difficulty: topic.difficulty),
-              ),
+              DifficultyBadge(difficulty: topic.difficulty),
             ],
           ),
           if (topic.description != null) ...<Widget>[
             const SizedBox(height: 8),
-            Text(
-              topic.description!,
-              style: text.bodyMedium?.copyWith(color: Colors.white),
-            ),
+            Text(topic.description!, style: text.bodyMedium),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.icon});
-
-  final String title;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 20, color: AppColors.primary),
-          const SizedBox(width: 6),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium
-                .weight(FontWeight.w600),
-          ),
         ],
       ),
     );

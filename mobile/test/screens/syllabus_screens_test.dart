@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mathmentor/core/constants.dart';
+import 'package:mathmentor/core/theme.dart';
 import 'package:mathmentor/models/topic.dart';
 import 'package:mathmentor/screens/topic/topic_detail_screen.dart';
 import 'package:mathmentor/screens/tutor/tutor_screen.dart';
@@ -116,12 +116,12 @@ void main() {
           )
           .style!
           .color!;
-      expect(badgeColor('Easy'), AppColors.easy);
-      expect(badgeColor('Medium'), AppColors.medium);
-      expect(badgeColor('Hard'), AppColors.hard);
+      expect(badgeColor('Easy'), GlassPalette.dark.success);
+      expect(badgeColor('Medium'), GlassPalette.dark.secondary);
+      expect(badgeColor('Hard'), GlassPalette.dark.error);
       expect(
-        DifficultyBadge.colorFor(Difficulty.hard),
-        const Color(0xFFC62828),
+        DifficultyBadge.colorFor(Difficulty.hard, GlassPalette.dark),
+        const Color(0xFFFF5252),
       );
     });
 

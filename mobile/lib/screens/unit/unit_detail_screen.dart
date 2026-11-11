@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants.dart';
 import '../../core/routes.dart';
 import '../../models/topic.dart';
 import '../../models/unit.dart';
 import '../../providers/units_provider.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/glass_card.dart';
+import '../../widgets/glass_scaffold.dart';
 import '../../widgets/loading_widget.dart';
 import '../../widgets/topic_card.dart';
 import '../../core/theme.dart';
@@ -66,8 +67,8 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
       ];
     }
 
-    return Scaffold(
-      appBar: AppBar(title: Text('Unit ${widget.unit.unitNumber}')),
+    return GlassScaffold(
+      title: 'Unit ${widget.unit.unitNumber}',
       body: RefreshIndicator(
         onRefresh: reload,
         child: ListView(
@@ -91,28 +92,22 @@ class _UnitHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
-    return Container(
-      width: double.infinity,
-      color: AppColors.primary,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-      margin: const EdgeInsets.only(bottom: 8),
+    return GlassCard(
+      key: const ValueKey<String>('unit-header'),
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            unit.title,
-            style: text.titleLarge.weight(FontWeight.w600, color: Colors.white),
-          ),
-          Text(
-            'Textbook page ${unit.pageNumber}',
-            style: text.bodySmall?.copyWith(color: Colors.white70),
+          GradientText(unit.title, style: text.headlineSmall),
+          const SizedBox(height: 6),
+          GlassPill(
+            label: 'Textbook page ${unit.pageNumber}',
+            color: context.palette.secondary,
+            icon: Icons.menu_book_rounded,
           ),
           if (unit.description != null) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(
-              unit.description!,
-              style: text.bodyMedium?.copyWith(color: Colors.white),
-            ),
+            const SizedBox(height: 10),
+            Text(unit.description!, style: text.bodyMedium),
           ],
         ],
       ),

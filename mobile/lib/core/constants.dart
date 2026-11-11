@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 /// Where the FastAPI backend lives. Chosen at build time, no code change needed:
 ///
 /// * Android emulator (default): `flutter run` -> `http://10.0.2.2:8000`
@@ -45,25 +43,6 @@ class ApiConfig {
 
   static const int maxQuestionLength = 500;
   static const int minPasswordLength = 8;
-}
-
-class AppColors {
-  AppColors._();
-
-  static const Color primary = Color(0xFF1565C0); // deep blue
-  static const Color secondary = Color(0xFFFFA000); // amber
-  static const Color background = Color(0xFFF5F5F5); // light grey
-
-  static const Color easy = Color(0xFF2E7D32); // green
-  static const Color medium = Color(0xFFEF6C00); // orange
-  static const Color hard = Color(0xFFC62828); // red
-
-  static const Color verified = Color(0xFF2E7D32);
-  static const Color failed = Color(0xFFC62828);
-  static const Color unverified = Color(0xFF757575);
-  static const Color warningBackground = Color(0xFFFFF8E1);
-  static const Color warningBorder = Color(0xFFFFC107);
-  static const Color errorBackground = Color(0xFFFFEBEE);
 }
 
 class AppStrings {

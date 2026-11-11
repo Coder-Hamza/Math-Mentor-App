@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../core/constants.dart';
 import '../core/theme.dart';
 import '../models/practice_result.dart';
+import 'glass_card.dart';
+import 'motion.dart';
 
-/// Shown after a practice answer is graded: right/wrong, the correct answer,
-/// the explanation, points and an Urdu/English encouragement.
+/// Shown after a practice answer is graded: right/wrong (green or red glow), the
+/// correct answer, the explanation, points and an Urdu/English encouragement.
 class PracticeResultCard extends StatelessWidget {
   const PracticeResultCard({super.key, required this.result});
 
@@ -14,17 +15,16 @@ class PracticeResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TextTheme text = Theme.of(context).textTheme;
+    final GlassPalette p = context.palette;
     final bool correct = result.isCorrect;
-    final Color color = correct ? AppColors.verified : AppColors.failed;
+    final Color color = correct ? p.success : p.error;
 
-    return Card(
-      key: const ValueKey<String>('result-card'),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color, width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Appear(
+      child: GlassCard(
+        key: const ValueKey<String>('result-card'),
+        tint: color,
+        borderColor: color,
+        glowColor: color,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -47,7 +47,7 @@ class PracticeResultCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                _PointsPill(points: result.pointsEarned),
+                PointsPill(points: result.pointsEarned),
               ],
             ),
             const SizedBox(height: 8),
@@ -63,7 +63,7 @@ class PracticeResultCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 'Yeh sawaal pehle hi solve ho chuka hai, is dafa points nahi.',
-                style: text.bodySmall?.copyWith(color: AppColors.unverified),
+                style: text.bodySmall,
               ),
             ],
             const Divider(height: 24),
@@ -72,10 +72,7 @@ class PracticeResultCard extends StatelessWidget {
             Text(
               result.correctAnswer,
               key: const ValueKey<String>('correct-answer'),
-              style: text.titleMedium.weight(
-                FontWeight.w600,
-                color: AppColors.verified,
-              ),
+              style: text.titleMedium.weight(FontWeight.w600, color: p.success),
             ),
             const SizedBox(height: 12),
             Text('Explanation', style: text.labelLarge),
@@ -88,24 +85,19 @@ class PracticeResultCard extends StatelessWidget {
   }
 }
 
-class _PointsPill extends StatelessWidget {
-  const _PointsPill({required this.points});
+/// Amber glass pill: "+20 pts".
+class PointsPill extends StatelessWidget {
+  const PointsPill({super.key, required this.points});
 
   final int points;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.secondary.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        '+$points points',
-        key: const ValueKey<String>('points-earned'),
-        style: Theme.of(context).textTheme.labelLarge.weight(FontWeight.w700),
-      ),
+    return GlassPill(
+      label: '+$points pts',
+      color: context.palette.secondary,
+      icon: Icons.star_rounded,
+      textKey: const ValueKey<String>('points-earned'),
     );
   }
 }

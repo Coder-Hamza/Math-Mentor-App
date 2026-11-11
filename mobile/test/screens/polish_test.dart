@@ -14,6 +14,7 @@ import 'package:mathmentor/screens/home/home_screen.dart';
 import 'package:mathmentor/screens/progress/progress_screen.dart';
 import 'package:mathmentor/screens/tutor/tutor_screen.dart';
 import 'package:mathmentor/services/progress_service.dart';
+import 'package:mathmentor/widgets/glass_card.dart';
 import 'package:mathmentor/widgets/progress_widgets.dart';
 import 'package:mathmentor/widgets/tutor_response_card.dart';
 import 'package:provider/provider.dart';
@@ -84,15 +85,8 @@ Future<void> tapTab(WidgetTester tester, String label) async {
 }
 
 String pointsText(WidgetTester tester) => tester
-    .widget<Text>(
-      find
-          .descendant(
-            of: find.byKey(const ValueKey<String>('stat-points')),
-            matching: find.byType(Text),
-          )
-          .first,
-    )
-    .data!;
+    .widget<GradientText>(find.byKey(const ValueKey<String>('stat-points')))
+    .text;
 
 void main() {
   group('API base URL', () {
@@ -259,7 +253,7 @@ void main() {
         usePhoneScreen(tester);
         await pumpApp(tester, backend, prefs: loggedIn);
         await tapTab(tester, 'Progress');
-        expect(pointsText(tester), '🏆 245');
+        expect(pointsText(tester), '245');
 
         await tapTab(tester, 'Units');
         final Completer<http.Response> slow = Completer<http.Response>();
@@ -275,7 +269,7 @@ void main() {
 
         // Old numbers immediately, with a thin "refreshing" bar — no full-screen spinner.
         expect(find.byType(StatsCard), findsOneWidget);
-        expect(pointsText(tester), '🏆 245');
+        expect(pointsText(tester), '245');
         expect(
           find.byKey(const ValueKey<String>('progress-refreshing')),
           findsOneWidget,
@@ -283,7 +277,7 @@ void main() {
 
         slow.complete(jsonResponse(progressJson(points: 280)));
         await tester.pumpAndSettle();
-        expect(pointsText(tester), '🏆 280');
+        expect(pointsText(tester), '280');
         expect(
           find.byKey(const ValueKey<String>('progress-refreshing')),
           findsNothing,
